@@ -1,0 +1,10 @@
+flask>=3.0
+numpy
+pillow
+openpyxl
+reportlab
+# face_recognition pulls in dlib, which needs cmake + a C++ compiler to build.
+# If the build fails on Windows, try:  pip install dlib-bin
+face_recognition
+# face_recognition_models still imports pkg_resources
+setuptools<81

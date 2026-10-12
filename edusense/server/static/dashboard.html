@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EduSense Records</title>
+<style>
+:root {
+  --bg:#0f1420; --panel:#171e2e; --panel2:#1d2639; --line:#2a3550; --text:#e8edf7;
+  --muted:#93a0ba; --accent:#4f8cff; --accent-ink:#fff; --good:#3ecf8e; --bad:#ff6b6b;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg:#f4f6fb; --panel:#ffffff; --panel2:#eef2f9; --line:#d9e0ee; --text:#18202f;
+          --muted:#5d6b85; --accent:#2f6fe4; --good:#168a58; --bad:#d03a3a; color-scheme: light; }
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text);
+       font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:14px 16px;
+         border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
+header h1 { font-size:18px; margin:0; letter-spacing:.2px; }
+header .chip { color:var(--muted); font-size:13px; }
+header .spacer { flex:1; }
+nav { display:flex; gap:4px; padding:10px 16px 0; max-width:1150px; margin:0 auto; overflow-x:auto; }
+nav button { background:none; border:0; border-bottom:2px solid transparent; color:var(--muted);
+             padding:10px 14px; font:inherit; cursor:pointer; white-space:nowrap; }
+nav button[aria-selected="true"] { color:var(--text); border-bottom-color:var(--accent); font-weight:600; }
+main { max-width:1150px; margin:0 auto; padding:16px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+.grid2 { display:grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); gap:16px; align-items:start; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } #detail-wrap { order:-1; } }
+h2 { font-size:16px; margin:0 0 12px; }
+h3 { font-size:14px; margin:18px 0 8px; }
+.muted { color:var(--muted); }
+.small { font-size:13px; }
+input, select, button.btn { font:inherit; color:var(--text); background:var(--panel2);
+        border:1px solid var(--line); border-radius:8px; padding:8px 10px; min-width:0; }
+input:focus, select:focus { outline:2px solid var(--accent); outline-offset:0; }
+button.btn { cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+button.danger { color:var(--bad); }
+a.btn { display:inline-block; text-decoration:none; font-weight:600; background:var(--accent);
+        color:var(--accent-ink); padding:9px 14px; border-radius:8px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.row > * { flex:0 1 auto; }
+.row .grow { flex:1 1 160px; }
+table { width:100%; border-collapse:collapse; }
+th { text-align:left; color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase;
+     letter-spacing:.4px; padding:8px; border-bottom:1px solid var(--line); }
+td { padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+tr.click { cursor:pointer; } tr.click:hover td { background:var(--panel2); }
+tr.sel td { background:var(--panel2); }
+.num { text-align:right; font-variant-numeric: tabular-nums; }
+.avatar { width:36px; height:36px; border-radius:50%; background:var(--panel2); position:relative;
+          display:inline-flex; align-items:center; justify-content:center; font-weight:700;
+          color:var(--muted); overflow:hidden; flex:none; }
+.avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.avatar.big { width:84px; height:84px; font-size:28px; }
+.bar { height:8px; background:var(--panel2); border-radius:99px; overflow:hidden; min-width:70px; }
+.bar > i { display:block; height:100%; background:var(--good); }
+.bar.low > i { background:var(--bad); }
+.pct { font-variant-numeric: tabular-nums; font-weight:600; }
+.pct.low { color:var(--bad); }
+.att { display:flex; align-items:center; gap:8px; }
+.att .bar { flex:1; }
+.sub { border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; }
+.sub h4 { margin:0 0 6px; font-size:14px; }
+.tag { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; background:var(--panel2);
+       color:var(--muted); }
+.chips { display:flex; gap:8px; flex-wrap:wrap; }
+.chip-btn { cursor:pointer; padding:7px 12px; border-radius:99px; border:1px solid var(--line);
+            background:var(--panel2); color:var(--text); font:inherit; }
+.chip-btn[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+.field { display:flex; flex-direction:column; gap:4px; flex:1 1 150px; }
+.field label { font-size:12px; color:var(--muted); }
+.marks-in { width:90px; text-align:right; }
+.cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
+.empty { padding:26px; text-align:center; color:var(--muted); }
+#toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--text);
+         color:var(--bg); padding:10px 16px; border-radius:10px; opacity:0; pointer-events:none;
+         transition:opacity .2s; max-width:90vw; z-index:20; }
+#toast.show { opacity:1; } #toast.err { background:var(--bad); color:#fff; }
+#detail { scroll-margin-top: 120px; }
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>EduSense Records</h1>
+  <span class="chip" id="health">connecting...</span>
+  <span class="spacer"></span>
+  <button class="btn" id="keybtn" type="button">API key</button>
+</header>
+<nav role="tablist" id="tabs">
+  <button role="tab" data-tab="students" aria-selected="true">Students</button>
+  <button role="tab" data-tab="marks" aria-selected="false">Subjects &amp; marks</button>
+  <button role="tab" data-tab="sessions" aria-selected="false">Sessions</button>
+  <button role="tab" data-tab="export" aria-selected="false">Export</button>
+</nav>
+<main>
+  <!-- STUDENTS -->
+  <section id="tab-students">
+    <div class="grid2">
+      <div class="panel">
+        <div class="row" style="margin-bottom:10px">
+          <h2 style="margin:0" class="grow">Students</h2>
+          <input id="q" class="grow" placeholder="Search name or roll no" aria-label="Search students">
+          <button class="btn primary" id="add-btn" type="button">+ Add student</button>
+        </div>
+        <div id="students-list"></div>
+      </div>
+      <div id="detail-wrap"><div class="panel empty" id="detail">Select a student to see their record.</div></div>
+    </div>
+  </section>
+
+  <!-- SUBJECTS & MARKS -->
+  <section id="tab-marks" class="hidden">
+    <div class="panel">
+      <h2>Subject</h2>
+      <div class="row">
+        <select id="subject-sel" class="grow" aria-label="Subject"></select>
+        <button class="btn danger" id="subject-del" type="button">Delete subject</button>
+      </div>
+      <h3>Add a subject</h3>
+      <form class="row" id="subject-form">
+        <input name="code" placeholder="Code, e.g. AI301" style="width:150px" required>
+        <input name="name" class="grow" placeholder="Name, e.g. Artificial Intelligence" required>
+        <button class="btn primary" type="submit">Add subject</button>
+      </form>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>Assessments</h2>
+      <div class="chips" id="assess-chips"></div>
+      <h3>Add an assessment</h3>
+      <form class="row" id="assess-form">
+        <select name="kind" aria-label="Type">
+          <option value="quiz">Quiz</option><option value="assignment">Assignment</option>
+          <option value="mid">Mid-term</option><option value="final">Final</option>
+        </select>
+        <input name="title" class="grow" placeholder="Title (optional, e.g. Quiz 2)">
+        <input name="max_marks" type="number" step="any" min="0.01" placeholder="Out of" style="width:100px" required>
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+    </div>
+    <div class="panel hidden" id="marks-panel" style="margin-top:16px">
+      <div class="row" style="margin-bottom:6px">
+        <h2 style="margin:0" class="grow" id="marks-title">Marks</h2>
+        <button class="btn danger" id="assess-del" type="button">Delete assessment</button>
+        <button class="btn primary" id="marks-save" type="button">Save marks</button>
+      </div>
+      <p class="muted small" style="margin-top:0">Leave a box empty if the student is not graded yet (it is not counted).
+        Type <b>0</b> for a student who scored zero or was absent.</p>
+      <div id="marks-grid"></div>
+    </div>
+  </section>
+
+  <!-- SESSIONS -->
+  <section id="tab-sessions" class="hidden">
+    <div class="panel">
+      <div class="row" style="margin-bottom:10px">
+        <h2 style="margin:0" class="grow">Attendance sessions</h2>
+        <select id="sess-filter" aria-label="Filter by subject"></select>
+      </div>
+      <div id="sessions-list"></div>
+    </div>
+  </section>
+
+  <!-- EXPORT -->
+  <section id="tab-export" class="hidden">
+    <div class="cards">
+      <div class="panel">
+        <h2>All students</h2>
+        <p class="muted small">One Excel workbook: a summary sheet plus one sheet per subject with attendance and every
+          mark. Attendance below the minimum is shown in red.</p>
+        <a class="btn" id="dl-xlsx" href="#">Download Excel (.xlsx)</a>
+      </div>
+      <div class="panel">
+        <h2>Each student separately</h2>
+        <p class="muted small">A PDF report for every student (profile, attendance and marks per subject), bundled in one ZIP.</p>
+        <a class="btn" id="dl-zip" href="#">Download all PDFs (.zip)</a>
+        <p class="muted small" style="margin-bottom:0">For one student, open them under Students and press <b>Download PDF</b>.</p>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const fmt = n => (n === null || n === undefined) ? "-" : String(Math.round(n * 100) / 100);
+const KIND = { quiz:"Quiz", assignment:"Assignment", mid:"Mid-term", final:"Final" };
+
+let key = "";
+try { key = new URLSearchParams(location.search).get("key") || localStorage.getItem("edusense_key") || ""; } catch (e) {}
+const S = { students: [], subjects: [], minAtt: 75, subject: null, assessment: null, selected: null, sessOpen: null };
+
+function saveKey(k) { key = k; try { localStorage.setItem("edusense_key", k); } catch (e) {} }
+function dl(path) { return path + (key ? (path.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(key) : ""); }
+
+let toastTimer;
+function toast(msg, isErr) {
+  const t = $("#toast"); t.textContent = msg; t.className = "show" + (isErr ? " err" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "", isErr ? 4500 : 2200);
+}
+
+async function api(path, opts = {}, retried = false) {
+  const headers = { "X-API-Key": key };
+  let body;
+  if (opts.form) body = opts.form;                      // multipart (photo upload)
+  else if (opts.body !== undefined) { headers["Content-Type"] = "application/json"; body = JSON.stringify(opts.body); }
+  const res = await fetch(path, { method: opts.method || "GET", headers, body });
+  if (res.status === 401 && !retried) {
+    const k = prompt("This server needs its API key:");
+    if (k === null) throw new Error("API key required");
+    saveKey(k.trim()); return api(path, opts, true);
+  }
+  let data = {}; try { data = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(data.error || ("Server error " + res.status));
+  return data;
+}
+const guard = fn => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message, true); } };
+
+/* ---------- small renderers ---------- */
+function avatar(s, big) {
+  const init = esc((s.name || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase());
+  const img = s.has_photo ? `<img alt="" src="${dl("/api/students/" + s.id + "/photo")}" onerror="this.remove()">` : "";
+  return `<span class="avatar${big ? " big" : ""}">${init}${img}</span>`;
+}
+function attBar(p) {
+  if (p === null || p === undefined) return `<span class="muted small">no sessions yet</span>`;
+  const low = p < S.minAtt;
+  return `<div class="att"><div class="bar${low ? " low" : ""}"><i style="width:${Math.min(100, p)}%"></i></div>
+          <span class="pct${low ? " low" : ""}">${p.toFixed(1)}%</span></div>`;
+}
+
+/* ---------- tabs ---------- */
+$("#tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tab]"); if (!b) return;
+  for (const t of document.querySelectorAll("#tabs button")) t.setAttribute("aria-selected", t === b);
+  for (const s of document.querySelectorAll("main > section")) s.classList.toggle("hidden", s.id !== "tab-" + b.dataset.tab);
+  ({ students: loadStudents, marks: loadMarksTab, sessions: loadSessions, export: setupExport })[b.dataset.tab]();
+});
+$("#keybtn").onclick = () => { const k = prompt("API key (leave empty if the server has none):", key); if (k !== null) { saveKey(k.trim()); init(); } };
+
+/* ---------- students ---------- */
+const loadStudents = guard(async () => {
+  const d = await api("/api/students");
+  S.students = d.students; renderStudents();
+  if (S.selected && S.students.some(s => s.id === S.selected)) openStudent(S.selected, false);
+});
+function renderStudents() {
+  const q = $("#q").value.trim().toLowerCase();
+  const rows = S.students.filter(s => !q || s.name.toLowerCase().includes(q) || s.roll_no.toLowerCase().includes(q));
+  if (!rows.length) { $("#students-list").innerHTML = `<div class="empty">${S.students.length ? "No match." : "No students yet. Press <b>+ Add student</b>, or enroll them in the phone app."}</div>`; return; }
+  $("#students-list").innerHTML = `<table><thead><tr><th></th><th>Roll no</th><th>Name</th><th style="width:34%">Attendance</th></tr></thead><tbody>` +
+    rows.map(s => `<tr class="click${s.id === S.selected ? " sel" : ""}" data-id="${s.id}"><td>${avatar(s)}</td>
+      <td>${esc(s.roll_no)}</td><td>${esc(s.name)}</td><td>${attBar(s.attendance_pct)}</td></tr>`).join("") + `</tbody></table>`;
+}
+$("#q").addEventListener("input", renderStudents);
+$("#students-list").addEventListener("click", e => { const tr = e.target.closest("tr[data-id]"); if (tr) openStudent(+tr.dataset.id, true); });
+
+function showEnroll() {
+  S.selected = null; renderStudents();
+  const d = $("#detail"); d.className = "panel";
+  d.innerHTML = `<h2>Add a student</h2>
+    <p class="muted small" style="margin-top:0">Add 3-5 clear photos of the student's face, <b>one face per photo</b>, in good light and from slightly
+      different angles. Recognition gets better with more photos. Using an existing roll number adds photos to that student.</p>
+    <form id="enroll-form" class="row">
+      <div class="field"><label>Roll number *</label><input name="roll_no" required></div>
+      <div class="field"><label>Name *</label><input name="name" required></div>
+      <div class="field"><label>Program</label><input name="program" placeholder="e.g. BSAI"></div>
+      <div class="field"><label>Email</label><input name="email" type="email"></div>
+      <div class="field"><label>Phone</label><input name="phone"></div>
+      <div class="field" style="flex-basis:100%"><label>Face photos *</label>
+        <input name="image" type="file" accept="image/*" multiple required></div>
+      <div id="enroll-preview" class="chips" style="flex-basis:100%"></div>
+      <button class="btn primary" type="submit" id="enroll-go">Add student</button>
+    </form>`;
+  $("#enroll-form [name=image]").onchange = e => {
+    const box = $("#enroll-preview"); box.innerHTML = "";
+    for (const f of e.target.files) {
+      const im = document.createElement("img"); im.src = URL.createObjectURL(f); im.alt = f.name; im.title = f.name;
+      im.style.cssText = "width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)";
+      box.appendChild(im);
+    }
+  };
+  $("#enroll-form").onsubmit = guard(async e => {
+    e.preventDefault();
+    const go = $("#enroll-go"); go.disabled = true; go.textContent = "Checking faces... (a few seconds per photo)";
+    try {
+      const r = await api("/api/students", { method: "POST", form: new FormData(e.target) });
+      toast(`${r.name} added with ${r.added_samples} photo${r.added_samples === 1 ? "" : "s"}`);
+      S.selected = r.id; await loadStudents();
+      const h = await api("/api/health"); $("#health").textContent = `${h.students} students enrolled - minimum attendance ${S.minAtt}%`;
+    } finally { go.disabled = false; go.textContent = "Add student"; }
+  });
+  if (matchMedia("(max-width: 860px)").matches) d.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("#add-btn").onclick = showEnroll;
+
+const openStudent = guard(async (id, scroll) => {
+  S.selected = id; renderStudents();
+  const r = await api("/api/students/" + id);
+  S.minAtt = r.min_attendance || S.minAtt;
+  const subs = r.subjects.filter(s => s.sessions || s.assessments.length);
+  const subHtml = subs.map(s => `<div class="sub"><h4>${esc(s.code)} <span class="muted">${esc(s.name)}</span></h4>
+      <div class="small muted">Attendance: ${s.present} of ${s.sessions} sessions</div>${attBar(s.attendance_pct)}
+      ${s.assessments.length ? `<table style="margin-top:8px"><tbody>` + s.assessments.map(a => `<tr><td>${esc(a.title)} <span class="tag">${KIND[a.kind]}</span></td>
+          <td class="num">${a.marks === null ? '<span class="muted">-</span>' : fmt(a.marks)} <span class="muted">/ ${fmt(a.max_marks)}</span></td></tr>`).join("") +
+        `<tr><td><b>Total (graded)</b></td><td class="num"><b>${fmt(s.obtained)} / ${fmt(s.out_of)}</b>${s.marks_pct === null ? "" : ` &middot; ${s.marks_pct.toFixed(1)}%`}</td></tr></tbody></table>`
+        : `<div class="small muted" style="margin-top:6px">No assessments yet.</div>`}</div>`).join("");
+  $("#detail").className = "panel";
+  $("#detail").innerHTML = `<div class="row" style="gap:14px;align-items:flex-start">${avatar(r, true)}
+      <div class="grow"><h2 style="margin:0">${esc(r.name)}</h2><div class="muted">${esc(r.roll_no)}</div>
+      <div class="small" style="margin-top:6px">Overall attendance: <b>${r.present} of ${r.sessions}</b> sessions</div>${attBar(r.attendance_pct)}</div></div>
+    <h3>Profile</h3>
+    <form id="profile-form" class="row">
+      <div class="field"><label>Roll number</label><input name="roll_no" value="${esc(r.roll_no)}" required></div>
+      <div class="field"><label>Name</label><input name="name" value="${esc(r.name)}" required></div>
+      <div class="field"><label>Program</label><input name="program" value="${esc(r.program)}" placeholder="e.g. BSAI"></div>
+      <div class="field"><label>Email</label><input name="email" type="email" value="${esc(r.email)}"></div>
+      <div class="field"><label>Phone</label><input name="phone" value="${esc(r.phone)}"></div>
+      <div class="field" style="justify-content:flex-end"><button class="btn primary" type="submit">Save profile</button></div>
+    </form>
+    <h3>Subjects</h3>${subHtml || '<div class="muted small">No sessions or marks recorded yet.</div>'}
+    <div class="row" style="margin-top:16px">
+      <a class="btn" href="${dl("/api/students/" + id + "/report.pdf")}">Download PDF</a>
+      <button class="btn danger" id="del-student" type="button">Delete student</button></div>`;
+  $("#profile-form").onsubmit = guard(async e => {
+    e.preventDefault();
+    await api("/api/students/" + id, { method: "PUT", body: Object.fromEntries(new FormData(e.target)) });
+    toast("Profile saved"); loadStudents();
+  });
+  $("#del-student").onclick = guard(async () => {
+    if (!confirm(`Delete ${r.name} (${r.roll_no}) and all their attendance and marks? This cannot be undone.`)) return;
+    await api("/api/students/" + id, { method: "DELETE" });
+    S.selected = null; $("#detail").className = "panel empty"; $("#detail").textContent = "Student deleted."; loadStudents();
+  });
+  if (scroll && matchMedia("(max-width: 860px)").matches) $("#detail").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+/* ---------- subjects & marks ---------- */
+async function refreshSubjects() {
+  S.subjects = (await api("/api/subjects")).subjects;
+  const opts = S.subjects.map(s => `<option value="${s.id}">${esc(s.code)} - ${esc(s.name)}</option>`).join("");
+  $("#subject-sel").innerHTML = opts;
+  $("#sess-filter").innerHTML = `<option value="">All subjects</option>` + opts;
+  if (!S.subjects.some(s => s.id === S.subject)) S.subject = S.subjects[0] ? S.subjects[0].id : null;
+  $("#subject-sel").value = S.subject ?? "";
+}
+const loadMarksTab = guard(async () => { await refreshSubjects(); await loadAssessments(); });
+$("#subject-sel").onchange = guard(async e => { S.subject = +e.target.value; S.assessment = null; await loadAssessments(); });
+
+$("#subject-form").onsubmit = guard(async e => {
+  e.preventDefault();
+  const r = await api("/api/subjects", { method: "POST", body: Object.fromEntries(new FormData(e.target)) });
+  e.target.reset(); S.subject = r.id; toast("Subject added"); await loadMarksTab();
+});
+$("#subject-del").onclick = guard(async () => {
+  const s = S.subjects.find(x => x.id === S.subject); if (!s) return;
+  if (!confirm(`Delete subject ${s.code}? (Only possible when it has no sessions or assessments.)`)) return;
+  await api("/api/subjects/" + s.id, { method: "DELETE" }); toast("Subject deleted"); S.subject = null; await loadMarksTab();
+});
+
+async function loadAssessments() {
+  const panel = $("#marks-panel");
+  if (S.subject === null) { $("#assess-chips").innerHTML = ""; panel.classList.add("hidden"); return; }
+  const list = (await api(`/api/subjects/${S.subject}/assessments`)).assessments;
+  if (!list.some(a => a.id === S.assessment)) S.assessment = list[0] ? list[0].id : null;
+  $("#assess-chips").innerHTML = list.length ? list.map(a => `<button class="chip-btn" data-id="${a.id}" aria-pressed="${a.id === S.assessment}">${esc(a.title)} <span class="small" style="opacity:.75">/${fmt(a.max_marks)}</span></button>`).join("")
+    : `<span class="muted">No assessments yet. Add one below.</span>`;
+  if (S.assessment === null) { panel.classList.add("hidden"); return; }
+  const d = await api(`/api/assessments/${S.assessment}/marks`);
+  panel.classList.remove("hidden");
+  $("#marks-title").textContent = `${d.assessment.title} (out of ${fmt(d.assessment.max_marks)})`;
+  $("#marks-grid").innerHTML = d.marks.length ? `<table><thead><tr><th>Roll no</th><th>Name</th><th class="num">Marks</th></tr></thead><tbody>` +
+    d.marks.map(m => `<tr><td>${esc(m.roll_no)}</td><td>${esc(m.name)}</td><td class="num"><input class="marks-in" type="number" step="any" min="0" max="${d.assessment.max_marks}" data-sid="${m.student_id}" value="${m.marks ?? ""}" aria-label="Marks for ${esc(m.name)}"></td></tr>`).join("") + `</tbody></table>`
+    : `<div class="empty">No students enrolled yet.</div>`;
+}
+$("#assess-chips").addEventListener("click", guard(async e => {
+  const b = e.target.closest("button[data-id]"); if (!b) return; S.assessment = +b.dataset.id; await loadAssessments();
+}));
+$("#assess-form").onsubmit = guard(async e => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  const r = await api(`/api/subjects/${S.subject}/assessments`, { method: "POST", body });
+  e.target.reset(); S.assessment = r.id; toast(r.title + " added"); await loadAssessments();
+});
+$("#assess-del").onclick = guard(async () => {
+  if (!confirm("Delete this assessment and all marks entered for it?")) return;
+  await api("/api/assessments/" + S.assessment, { method: "DELETE" }); S.assessment = null; toast("Assessment deleted"); await loadAssessments();
+});
+$("#marks-save").onclick = guard(async () => {
+  const marks = {};
+  for (const i of document.querySelectorAll("#marks-grid input")) marks[i.dataset.sid] = i.value === "" ? null : Number(i.value);
+  const r = await api(`/api/assessments/${S.assessment}/marks`, { method: "PUT", body: { marks } });
+  toast("Saved marks for " + r.saved + " students");
+});
+
+/* ---------- sessions ---------- */
+const loadSessions = guard(async () => {
+  if (!S.subjects.length) await refreshSubjects();
+  const f = $("#sess-filter").value;
+  const d = await api("/api/sessions?limit=200" + (f ? "&subject_id=" + f : ""));
+  $("#sessions-list").innerHTML = d.sessions.length ? `<table><thead><tr><th>Session</th><th>Subject</th><th>When</th><th class="num">Present</th></tr></thead><tbody>` +
+    d.sessions.map(s => `<tr class="click${s.id === S.sessOpen ? " sel" : ""}" data-id="${s.id}"><td>${esc(s.title)}</td><td><span class="tag">${esc(s.subject_code)}</span></td>
+      <td class="muted small">${esc(s.created_at.replace("T", " ").slice(0, 16))}</td><td class="num">${s.present}</td></tr>` +
+      (s.id === S.sessOpen ? `<tr><td colspan="4" id="sess-detail" class="muted">Loading...</td></tr>` : "")).join("") + `</tbody></table>`
+    : `<div class="empty">No sessions yet. Start one in the phone app.</div>`;
+  if (S.sessOpen) renderSessionDetail();
+});
+$("#sess-filter").onchange = loadSessions;
+$("#sessions-list").addEventListener("click", e => {
+  const tr = e.target.closest("tr.click"); if (!tr) return;
+  S.sessOpen = S.sessOpen === +tr.dataset.id ? null : +tr.dataset.id; loadSessions();
+});
+const renderSessionDetail = guard(async () => {
+  const el = $("#sess-detail"); if (!el) return;
+  const d = await api(`/api/sessions/${S.sessOpen}/attendance`);
+  const chip = (p, present) => `<button class="chip-btn" data-sid="${p.student_id}" data-present="${present}" title="${present ? "Click to mark absent" : "Click to mark present"}">${esc(p.roll_no)} ${esc(p.name)}</button>`;
+  el.className = ""; el.innerHTML = `<div class="small muted" style="margin:4px 0">Present (${d.present.length}) - click a name to mark absent</div>
+    <div class="chips">${d.present.map(p => chip(p, true)).join("") || '<span class="muted">nobody</span>'}</div>
+    <div class="small muted" style="margin:12px 0 4px">Absent (${d.absent.length}) - click a name to mark present</div>
+    <div class="chips">${d.absent.map(p => chip(p, false)).join("") || '<span class="muted">nobody</span>'}</div>
+    <p style="margin:12px 0 4px"><a href="${dl(`/api/sessions/${S.sessOpen}/export.csv`)}">Download this session as CSV</a></p>`;
+  el.onclick = guard(async e => {
+    const b = e.target.closest("button[data-sid]"); if (!b) return;
+    await api(`/api/sessions/${S.sessOpen}/mark`, { method: "POST", body: { student_id: +b.dataset.sid, present: b.dataset.present !== "true" } });
+    loadSessions();
+  });
+});
+
+/* ---------- export ---------- */
+function setupExport() { $("#dl-xlsx").href = dl("/api/export/all.xlsx"); $("#dl-zip").href = dl("/api/export/reports.zip"); }
+
+/* ---------- start ---------- */
+const init = guard(async () => {
+  const h = await api("/api/health");
+  S.minAtt = h.min_attendance || S.minAtt;
+  $("#health").textContent = `${h.students} students enrolled - minimum attendance ${S.minAtt}%`;
+  await loadStudents();
+});
+init();
+</script>
+</body>
+</html>
