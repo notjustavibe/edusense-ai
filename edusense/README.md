@@ -4,7 +4,7 @@ Automated classroom attendance using face recognition. Take one photo of the cla
 
 Built for the AI Theory course (BSAI, Superior University Lahore).
 
-![Dashboard](docs/dashboard.png)
+![Dashboard](edusense/docs/dashboard.png)
 
 ## Features
 
@@ -22,23 +22,23 @@ Built for the AI Theory course (BSAI, Superior University Lahore).
 
 | Home and session | Attendance result |
 |---|---|
-| ![Android app](docs/android_app.jpg) | ![Session](docs/session.png) |
+| ![Android app](edusense/docs/android_app.jpg) | ![Session](edusense/docs/session.png) |
 
 ### Web dashboard
 
 | Student profile | Marks entry |
 |---|---|
-| ![Student profile](docs/student_profile.png) | ![Marks](docs/marks.png) |
+| ![Student profile](edusense/docs/student_profile.png) | ![Marks](edusense/docs/marks.png) |
 
 | Enrol a student | Reports and exports |
 |---|---|
-| ![New student](docs/new_student.png) | ![Reports](docs/reports.png) |
+| ![New student](edusense/docs/new_student.png) | ![Reports](edusense/docs/reports.png) |
 
 ### Sample photos
 
 | Class photo | Enrolment photos |
 |---|---|
-| ![Class](docs/images.jpg) | ![Student 1](docs/student1.jpg) ![Student 2](docs/student2.jpg) ![Student 3](edusense/docs/Student 3.jpg) |
+| ![Class](edusense/docs/images.jpg) | ![Student 1](edusense/docs/student1.jpg) ![Student 2](edusense/docs/student2.jpg) ![Student 3](edusense/docs/Student 3.jpg) |
 
 ## How it works
 
