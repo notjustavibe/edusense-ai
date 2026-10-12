@@ -10,6 +10,7 @@ import webbrowser
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
+from kivy.metrics import dp
 from kivy.storage.jsonstore import JsonStore
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
@@ -128,11 +129,18 @@ class HomeScreen(Screen):
                 btn = Button(
                     text="%s\n%s  |  %d present" % (s["label"], s["created_at"][:16], s["present"]),
                     size_hint_y=None,
-                    height=64,
-                    halign="center",
+                    height=dp(76),
+                    halign="left",
+                    valign="middle",
+                    padding=(dp(14), dp(10)),
                     background_normal="",
                     background_color=(0.13, 0.17, 0.25, 1),
                 )
+                # Wrap long subject/session names instead of drawing them over adjacent text.
+                btn.bind(width=lambda widget, width: setattr(widget, "text_size", (max(0, width - dp(28)), None)))
+                btn.text_size = (max(dp(200), Window.width - dp(60)), None)
+                btn.texture_update()
+                btn.height = max(dp(76), btn.texture_size[1] + dp(24))
                 btn.bind(on_release=lambda _b, s=s: self.open_session(s["id"], s["label"]))
                 box.add_widget(btn)
 

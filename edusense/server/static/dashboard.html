@@ -76,6 +76,13 @@ tr.sel td { background:var(--panel2); }
 .field label { font-size:12px; color:var(--muted); }
 .marks-in { width:90px; text-align:right; }
 .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
+.session-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:12px; }
+.session-card { border:1px solid var(--line); border-radius:10px; padding:12px; min-width:0; cursor:pointer; background:var(--panel); }
+.session-card:hover,.session-card.sel { background:var(--panel2); border-color:var(--accent); }
+.session-card h3 { margin:0 0 6px; font-size:15px; overflow-wrap:anywhere; }
+.session-meta { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; }
+.session-detail { grid-column:1/-1; min-width:0; overflow-wrap:anywhere; }
+@media (max-width:600px) { main { padding:10px; } .panel { padding:12px; } .session-cards { grid-template-columns:minmax(0,1fr); } .session-card { width:100%; } .chips { gap:6px; } .chip-btn { max-width:100%; white-space:normal; overflow-wrap:anywhere; } }
 .empty { padding:26px; text-align:center; color:var(--muted); }
 #toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--text);
          color:var(--bg); padding:10px 16px; border-radius:10px; opacity:0; pointer-events:none;
@@ -162,6 +169,11 @@ tr.sel td { background:var(--panel2); }
         <h2 style="margin:0" class="grow">Attendance sessions</h2>
         <select id="sess-filter" aria-label="Filter by subject"></select>
       </div>
+      <form id="session-form" class="row" style="margin:12px 0 16px">
+        <input name="title" class="grow" placeholder="Session title, e.g. Lecture 08" aria-label="New session title" required maxlength="120">
+        <select name="subject_id" id="new-session-subject" aria-label="Session subject" required></select>
+        <button class="btn primary" type="submit">+ New session</button>
+      </form>
       <div id="sessions-list"></div>
     </div>
   </section>
@@ -405,31 +417,57 @@ const loadSessions = guard(async () => {
   if (!S.subjects.length) await refreshSubjects();
   const f = $("#sess-filter").value;
   const d = await api("/api/sessions?limit=200" + (f ? "&subject_id=" + f : ""));
-  $("#sessions-list").innerHTML = d.sessions.length ? `<table><thead><tr><th>Session</th><th>Subject</th><th>When</th><th class="num">Present</th></tr></thead><tbody>` +
-    d.sessions.map(s => `<tr class="click${s.id === S.sessOpen ? " sel" : ""}" data-id="${s.id}"><td>${esc(s.title)}</td><td><span class="tag">${esc(s.subject_code)}</span></td>
-      <td class="muted small">${esc(s.created_at.replace("T", " ").slice(0, 16))}</td><td class="num">${s.present}</td></tr>` +
-      (s.id === S.sessOpen ? `<tr><td colspan="4" id="sess-detail" class="muted">Loading...</td></tr>` : "")).join("") + `</tbody></table>`
-    : `<div class="empty">No sessions yet. Start one in the phone app.</div>`;
+  const list = $("#sessions-list");
+  list.className = "session-cards";
+  list.innerHTML = d.sessions.length ? d.sessions.map(s => `
+    <article class="session-card${s.id === S.sessOpen ? " sel" : ""}" data-id="${s.id}" tabindex="0" role="button" aria-expanded="${s.id === S.sessOpen}">
+      <h3>${esc(s.title)}</h3>
+      <div class="session-meta"><span class="tag">${esc(s.subject_code)}</span><span class="muted small">${esc(s.created_at.replace("T", " ").slice(0, 16))}</span></div>
+      <p class="muted small" style="margin:10px 0 0">${s.present} present · Select to view or edit attendance</p>
+      ${s.id === S.sessOpen ? `<div id="sess-detail" class="session-detail" style="margin-top:12px">Loading attendance...</div>` : ""}
+    </article>`).join("") : `<div class="empty">No sessions yet. Create one above to start taking attendance.</div>`;
+  const subjectSelect = $("#new-session-subject");
+  if (subjectSelect && S.subjects.length) {
+    const previous = subjectSelect.value;
+    subjectSelect.innerHTML = S.subjects.map(s => `<option value="${s.id}">${esc(s.code)} - ${esc(s.name)}</option>`).join("");
+    subjectSelect.value = S.subjects.some(s => String(s.id) === previous) ? previous : String(S.subject ?? S.subjects[0].id);
+  }
   if (S.sessOpen) renderSessionDetail();
 });
 $("#sess-filter").onchange = loadSessions;
+$("#session-form").onsubmit = guard(async e => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const title = form.elements.title.value.trim();
+  const subject_id = Number(form.elements.subject_id.value);
+  if (!title || !subject_id) { toast("Enter a title and choose a subject", true); return; }
+  const created = await api("/api/sessions", { method: "POST", body: { title, subject_id } });
+  S.sessOpen = created.id;
+  form.elements.title.value = "";
+  toast("Session created");
+  await loadSessions();
+});
 $("#sessions-list").addEventListener("click", e => {
-  const tr = e.target.closest("tr.click"); if (!tr) return;
-  S.sessOpen = S.sessOpen === +tr.dataset.id ? null : +tr.dataset.id; loadSessions();
+  const card = e.target.closest(".session-card"); if (!card) return;
+  if (e.target.closest("button[data-sid]")) return;
+  S.sessOpen = S.sessOpen === +card.dataset.id ? null : +card.dataset.id; loadSessions();
+});
+$("#sessions-list").addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches(".session-card")) { e.preventDefault(); S.sessOpen = S.sessOpen === +e.target.dataset.id ? null : +e.target.dataset.id; loadSessions(); }
 });
 const renderSessionDetail = guard(async () => {
   const el = $("#sess-detail"); if (!el) return;
   const d = await api(`/api/sessions/${S.sessOpen}/attendance`);
-  const chip = (p, present) => `<button class="chip-btn" data-sid="${p.student_id}" data-present="${present}" title="${present ? "Click to mark absent" : "Click to mark present"}">${esc(p.roll_no)} ${esc(p.name)}</button>`;
-  el.className = ""; el.innerHTML = `<div class="small muted" style="margin:4px 0">Present (${d.present.length}) - click a name to mark absent</div>
-    <div class="chips">${d.present.map(p => chip(p, true)).join("") || '<span class="muted">nobody</span>'}</div>
-    <div class="small muted" style="margin:12px 0 4px">Absent (${d.absent.length}) - click a name to mark present</div>
-    <div class="chips">${d.absent.map(p => chip(p, false)).join("") || '<span class="muted">nobody</span>'}</div>
+  const chip = (p, present) => `<button type="button" class="chip-btn" data-sid="${p.student_id}" data-present="${present}" title="${present ? "Click to mark absent" : "Click to mark present"}">${esc(p.roll_no)} ${esc(p.name)} · ${present ? "Present" : "Absent"}</button>`;
+  el.className = "session-detail"; el.innerHTML = `<div class="small muted" style="margin:4px 0">Present (${d.present.length}) — tap a student to mark absent</div>
+    <div class="chips">${d.present.map(p => chip(p, true)).join("") || '<span class="muted">Nobody yet</span>'}</div>
+    <div class="small muted" style="margin:12px 0 4px">Absent (${d.absent.length}) — tap a student to mark present</div>
+    <div class="chips">${d.absent.map(p => chip(p, false)).join("") || '<span class="muted">Nobody</span>'}</div>
     <p style="margin:12px 0 4px"><a href="${dl(`/api/sessions/${S.sessOpen}/export.csv`)}">Download this session as CSV</a></p>`;
   el.onclick = guard(async e => {
     const b = e.target.closest("button[data-sid]"); if (!b) return;
     await api(`/api/sessions/${S.sessOpen}/mark`, { method: "POST", body: { student_id: +b.dataset.sid, present: b.dataset.present !== "true" } });
-    loadSessions();
+    await loadSessions();
   });
 });
 
