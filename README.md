@@ -38,7 +38,7 @@ Built for the AI Theory course (BSAI, Superior University Lahore).
 
 | Class photo | Enrolment photos |
 |---|---|
-| ![Class](edusense/docs/images.jpg) | ![Student 1](edusense/docs/student1.jpg) ![Student 2](edusense/docs/student2.jpg) ![Student 3](docs/student22.jpg) |
+| ![Class](edusense/docs/images.jpg) | ![Student 1](edusense/docs/student1.jpg) ![Student 2](edusense/docs/student2.jpg) ![Student 3](edusense/docs/Student 3.jpg) |
 
 ## How it works
 
