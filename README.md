@@ -92,3 +92,15 @@ Rebuild the APK too (`buildozer -v android debug`) to get the subject picker.
   crash with a file-URI error. If so, use **From gallery** or swap in `camera4kivy`.
 - Only HTTP on the local network is configured. Use HTTPS if you ever expose the server.
 - Not tested on a physical phone from this environment - do a first test with 2-3 friends.
+
+## v0.3.0 - records and marks inside the app
+
+Home screen now has **Records**, **Marks** and **Dashboard** buttons.
+- Records: every student with attendance %, red when below the minimum; tap one for per-subject attendance and marks, plus a PDF download.
+- Marks: choose a subject, add subjects/assessments (Quiz, Assignment, Mid-term, Final) and type marks for the whole class, then Save marks.
+- Dashboard: opens the web dashboard in the phone browser (exports, profile editing).
+
+## Hosting on Render (optional)
+Use a **Web Service** (not a Static Site): Root Directory `server`, Build `./render-build.sh`,
+Start `gunicorn app:app --workers 1 --timeout 120`, env `EDUSENSE_KEY`. Free instances lose
+the database on restart; use a Persistent Disk and `EDUSENSE_DB=/data/edusense.db`.
