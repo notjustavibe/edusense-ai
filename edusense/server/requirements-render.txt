@@ -1,0 +1,11 @@
+flask>=3.0
+gunicorn
+numpy<2
+pillow
+openpyxl
+reportlab
+setuptools<81
+# prebuilt dlib wheel, avoids compiling dlib on Render (needs far more RAM than a small instance has)
+dlib-bin
+face_recognition_models
+Click

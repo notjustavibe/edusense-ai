@@ -11,13 +11,17 @@ from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.storage.jsonstore import JsonStore
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
+from kivy.uix.label import Label
 from kivy.uix.screenmanager import Screen
-from kivy.utils import platform
+from kivy.uix.textinput import TextInput
+from kivy.utils import escape_markup, platform
 
 from api import Api, ApiError  # noqa: F401  (ApiError re-exported for screens)
 
 Window.clearcolor = (0.07, 0.09, 0.13, 1)
+Window.softinput_mode = "below_target"
 
 DEFAULT_URL = "http://192.168.1.10:5000"
 
@@ -41,6 +45,27 @@ def message(err):
 
 def app():
     return App.get_running_app()
+
+
+def open_url(url):
+    """Open a link in the phone's browser (plain webbrowser does not work reliably on Android)."""
+    if platform == "android":
+        from jnius import autoclass
+
+        Intent = autoclass("android.content.Intent")
+        Uri = autoclass("android.net.Uri")
+        PythonActivity = autoclass("org.kivy.android.PythonActivity")
+        PythonActivity.mActivity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    else:
+        webbrowser.open(url)
+
+
+def pct_text(p):
+    return "n/a" if p is None else "%.1f%%" % p
+
+
+def num(x):
+    return "-" if x is None else ("%g" % x)
 
 
 # --------------------------------------------------------------------- Home
@@ -139,6 +164,13 @@ class HomeScreen(Screen):
     def open_session(self, sid, title):
         self.manager.get_screen("session").load(sid, title)
         self.manager.current = "session"
+
+    def open_dashboard(self):
+        app().configure(self.ids.server_in.text, self.ids.key_in.text)
+        if not app().api.base_url:
+            self.set_status("Set the server URL first")
+            return
+        open_url(app().api.dashboard_url())
 
 
 # ----------------------------------------------------------------- Students
@@ -283,7 +315,307 @@ class SessionScreen(Screen):
         bg(lambda: app().api.attendance(self.session_id), done)
 
     def open_csv(self):
-        webbrowser.open(app().api.csv_url(self.session_id))
+        open_url(app().api.csv_url(self.session_id))
+
+
+# ------------------------------------------------------------------ Records
+class RecordsScreen(Screen):
+    """List of all students with their overall attendance percentage."""
+
+    students = []
+    min_att = 75.0
+
+    def on_pre_enter(self, *_):
+        if "list_box" not in self.ids:
+            return
+        self.ids.search_in.text = ""
+        self.ids.status.text = "Loading..."
+
+        def work():
+            return app().api.health(), app().api.students()
+
+        def done(res, err):
+            if err:
+                self.ids.status.text = message(err)
+                return
+            health, self.students = res
+            self.min_att = health.get("min_attendance", 75.0)
+            self.ids.status.text = "%d students  |  red = attendance below %g%%" % (
+                len(self.students),
+                self.min_att,
+            )
+            self.render()
+
+        bg(work, done)
+
+    def render(self):
+        if "list_box" not in self.ids:  # kv is still being built
+            return
+        q = self.ids.search_in.text.strip().lower()
+        box = self.ids.list_box
+        box.clear_widgets()
+        for s in self.students:
+            if q and q not in s["name"].lower() and q not in s["roll_no"].lower():
+                continue
+            p = s.get("attendance_pct")
+            colour = "ff6b6b" if p is not None and p < self.min_att else "3ecf8e"
+            btn = Button(
+                text="%s\n%s    [color=%s]%s[/color]"
+                % (escape_markup(s["roll_no"]), escape_markup(s["name"]), colour, pct_text(p)),
+                markup=True,
+                size_hint_y=None,
+                height=70,
+                halign="left",
+                valign="middle",
+                background_normal="",
+                background_color=(0.13, 0.17, 0.25, 1),
+            )
+            btn.bind(size=lambda b, _s: setattr(b, "text_size", (b.width - 24, b.height)))
+            btn.bind(on_release=lambda _b, s=s: self.open_student(s["id"]))
+            box.add_widget(btn)
+
+    def open_student(self, sid):
+        self.manager.get_screen("detail").load(sid)
+        self.manager.current = "detail"
+
+
+class RecordDetailScreen(Screen):
+    """One student: profile, attendance and marks per subject."""
+
+    student_id = None
+
+    def load(self, sid):
+        self.student_id = sid
+        self.ids.heading.text = "Loading..."
+        self.ids.report.text = ""
+
+        def done(res, err):
+            if err:
+                self.ids.heading.text = "Could not load"
+                self.ids.report.text = message(err)
+                return
+            self.ids.heading.text = res["name"]
+            self.ids.report.text = self.format(res)
+
+        bg(lambda: app().api.student_record(sid), done)
+
+    @staticmethod
+    def format(r):
+        e = escape_markup
+        low = r.get("min_attendance", 75)
+        lines = ["[b]%s[/b]   %s" % (e(r["roll_no"]), e(r["name"]))]
+        for label, key in (("Program", "program"), ("Email", "email"), ("Phone", "phone")):
+            if r.get(key):
+                lines.append("%s: %s" % (label, e(r[key])))
+        lines += [
+            "",
+            "[b]Overall attendance:[/b] %d of %d sessions  (%s)"
+            % (r["present"], r["sessions"], pct_text(r["attendance_pct"])),
+        ]
+        for s in r["subjects"]:
+            if not s["sessions"] and not s["assessments"]:
+                continue
+            lines += ["", "[b]%s - %s[/b]" % (e(s["code"]), e(s["name"]))]
+            a = s["attendance_pct"]
+            flag = "  [color=ff6b6b]below %g%%[/color]" % low if a is not None and a < low else ""
+            lines.append("Attendance: %d of %d  (%s)%s" % (s["present"], s["sessions"], pct_text(a), flag))
+            for x in s["assessments"]:
+                lines.append("   %s:  %s / %s" % (e(x["title"]), num(x["marks"]), num(x["max_marks"])))
+            if s["assessments"]:
+                got = num(s["obtained"]) if s["out_of"] else "-"
+                lines.append(
+                    "   [b]Total (graded): %s / %s  (%s)[/b]"
+                    % (got, num(s["out_of"]) if s["out_of"] else "-", pct_text(s["marks_pct"]))
+                )
+        return "\n".join(lines)
+
+    def open_pdf(self):
+        if self.student_id is not None:
+            open_url(app().api.pdf_url(self.student_id))
+
+
+# -------------------------------------------------------------------- Marks
+KINDS = {"Quiz": "quiz", "Assignment": "assignment", "Mid-term": "mid", "Final": "final"}
+
+
+class MarksScreen(Screen):
+    """Pick subject + assessment, then type marks for the whole class."""
+
+    subjects = {}
+    assessments = {}
+    assessment = None
+    inputs = {}  # student_id -> (TextInput, roll_no)
+    keep_subject = None
+    keep_assessment = None
+    token = 0
+
+    def ready(self):
+        # Spinner on_text events fire while the .kv is being built, before these widgets exist.
+        return all(k in self.ids for k in ("subject_spin", "assess_spin", "grid", "status"))
+
+    def on_pre_enter(self, *_):
+        if not self.ready():
+            return
+        self.ids.status.text = "Loading subjects..."
+
+        def done(res, err):
+            if err:
+                self.ids.status.text = message(err)
+                return
+            self.subjects = {"%s - %s" % (s["code"], s["name"]): s for s in res}
+            spin = self.ids.subject_spin
+            spin.values = list(self.subjects)
+            wanted = self.keep_subject or spin.text
+            spin.text = wanted if wanted in self.subjects else (spin.values[0] if spin.values else "No subjects")
+            self.keep_subject = None
+            self.ids.status.text = ""
+            self.load_assessments()
+
+        bg(app().api.subjects, done)
+
+    def clear_grid(self):
+        self.ids.grid.clear_widgets()
+        self.inputs = {}
+        self.assessment = None
+
+    def load_assessments(self):
+        if not self.ready():
+            return
+        subject = self.subjects.get(self.ids.subject_spin.text)
+        self.assessments = {}
+        self.ids.assess_spin.values = []
+        self.ids.assess_spin.text = "No assessments yet"
+        self.clear_grid()
+        if not subject:
+            return
+        sid = subject["id"]
+
+        def done(res, err):
+            if err:
+                self.ids.status.text = message(err)
+                return
+            if (self.subjects.get(self.ids.subject_spin.text) or {}).get("id") != sid:
+                return  # the user picked another subject meanwhile
+            self.assessments = {"%s (/%g)" % (a["title"], a["max_marks"]): a for a in res}
+            spin = self.ids.assess_spin
+            spin.values = list(self.assessments)
+            if spin.values:
+                wanted = self.keep_assessment
+                spin.text = wanted if wanted in self.assessments else spin.values[0]
+                self.keep_assessment = None
+                self.load_marks()
+            else:
+                self.ids.status.text = "No assessments yet - add one with + Assessment"
+
+        bg(lambda: app().api.assessments(sid), done)
+
+    def load_marks(self):
+        if not self.ready():
+            return
+        a = self.assessments.get(self.ids.assess_spin.text)
+        self.clear_grid()
+        if not a:
+            return
+        self.token += 1
+        token = self.token
+        self.ids.status.text = "Loading marks..."
+
+        def done(res, err):
+            if err:
+                self.ids.status.text = message(err)
+                return
+            if token != self.token:
+                return  # stale answer
+            self.assessment = res["assessment"]
+            self.ids.status.text = "%s, out of %g. Empty = not graded yet; type 0 for zero." % (
+                res["assessment"]["title"],
+                res["assessment"]["max_marks"],
+            )
+            for m in res["marks"]:
+                row = BoxLayout(size_hint_y=None, height=52, spacing=8)
+                label = Label(text="%s  %s" % (m["roll_no"], m["name"]), halign="left", valign="middle", size_hint_x=0.62)
+                label.bind(size=lambda l, _s: setattr(l, "text_size", (l.width, l.height)))
+                box = TextInput(
+                    text="" if m["marks"] is None else "%g" % m["marks"],
+                    multiline=False,
+                    input_filter="float",
+                    hint_text="-",
+                    size_hint_x=0.38,
+                    padding=(10, 14),
+                    background_color=(0.12, 0.15, 0.22, 1),
+                    foreground_color=(1, 1, 1, 1),
+                    hint_text_color=(0.55, 0.6, 0.7, 1),
+                    cursor_color=(1, 1, 1, 1),
+                )
+                row.add_widget(label)
+                row.add_widget(box)
+                self.ids.grid.add_widget(row)
+                self.inputs[m["student_id"]] = (box, m["roll_no"])
+            if not res["marks"]:
+                self.ids.status.text = "No students enrolled yet"
+
+        bg(lambda: app().api.marks(a["id"]), done)
+
+    def save(self):
+        if not self.assessment:
+            self.ids.status.text = "Pick an assessment first"
+            return
+        marks = {}
+        for sid, (box, roll) in self.inputs.items():
+            text = box.text.strip()
+            if not text:
+                marks[sid] = None
+                continue
+            try:
+                marks[sid] = float(text)
+            except ValueError:
+                self.ids.status.text = "Marks for %s is not a number" % roll
+                return
+        aid = self.assessment["id"]
+        self.ids.status.text = "Saving..."
+
+        def done(res, err):
+            self.ids.status.text = message(err) if err else "Saved marks for %d students" % res["saved"]
+
+        bg(lambda: app().api.set_marks(aid, marks), done)
+
+    def add_subject(self):
+        code, name = self.ids.new_code.text.strip(), self.ids.new_name.text.strip()
+        if not code or not name:
+            self.ids.status.text = "Type a code and a name for the new subject"
+            return
+
+        def done(res, err):
+            if err:
+                self.ids.status.text = message(err)
+                return
+            self.ids.new_code.text = self.ids.new_name.text = ""
+            self.keep_subject = "%s - %s" % (res["code"], res["name"])
+            self.on_pre_enter()
+
+        bg(lambda: app().api.create_subject(code, name), done)
+
+    def add_assessment(self):
+        subject = self.subjects.get(self.ids.subject_spin.text)
+        if not subject:
+            self.ids.status.text = "Pick a subject first"
+            return
+        try:
+            out_of = float(self.ids.max_in.text)
+        except ValueError:
+            self.ids.status.text = "Type the maximum marks first (for example 10)"
+            return
+
+        def done(res, err):
+            if err:
+                self.ids.status.text = message(err)
+                return
+            self.ids.max_in.text = ""
+            self.keep_assessment = "%s (/%g)" % (res["title"], res["max_marks"])
+            self.load_assessments()
+
+        kind = KINDS.get(self.ids.kind_spin.text, "quiz")
+        bg(lambda: app().api.create_assessment(subject["id"], kind, "", out_of), done)
 
 
 # ---------------------------------------------------------------------- App

@@ -23,6 +23,12 @@
     hint_text_color: 0.55, 0.6, 0.7, 1
     cursor_color: 1, 1, 1, 1
 
+<Spin@Spinner>:
+    size_hint_y: None
+    height: dp(44)
+    background_normal: ''
+    background_color: 0.12, 0.15, 0.22, 1
+
 <Heading@Label>:
     size_hint_y: None
     height: dp(40)
@@ -48,6 +54,12 @@ ScreenManager:
         name: 'enroll'
     SessionScreen:
         name: 'session'
+    RecordsScreen:
+        name: 'records'
+    RecordDetailScreen:
+        name: 'detail'
+    MarksScreen:
+        name: 'marks'
 
 <HomeScreen>:
     BoxLayout:
@@ -55,7 +67,7 @@ ScreenManager:
         padding: dp(16)
         spacing: dp(8)
         Heading:
-            text: 'EduSense AI  (v0.2.0 - with subjects)'
+            text: 'EduSense AI  (v0.3.0)'
         Field:
             id: server_in
             hint_text: 'Server URL, e.g. http://192.168.1.10:5000'
@@ -76,13 +88,22 @@ ScreenManager:
         Note:
             id: status
             text: ''
-        Spinner:
+        BoxLayout:
+            size_hint_y: None
+            height: dp(48)
+            spacing: dp(8)
+            Btn:
+                text: 'Records'
+                on_release: app.root.current = 'records'
+            Btn:
+                text: 'Marks'
+                on_release: app.root.current = 'marks'
+            GhostBtn:
+                text: 'Dashboard'
+                on_release: root.open_dashboard()
+        Spin:
             id: subject_spin
             text: 'Loading subjects...'
-            size_hint_y: None
-            height: dp(44)
-            background_normal: ''
-            background_color: 0.12, 0.15, 0.22, 1
         Field:
             id: title_in
             hint_text: 'New session title, e.g. Week 5'
@@ -206,4 +227,128 @@ ScreenManager:
                 on_release: root.open_csv()
             GhostBtn:
                 text: 'Done'
+                on_release: app.root.current = 'home'
+
+<RecordsScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: dp(16)
+        spacing: dp(8)
+        Heading:
+            text: 'Student records'
+        Field:
+            id: search_in
+            hint_text: 'Search name or roll number'
+            on_text: root.render()
+        Note:
+            id: status
+            text: ''
+        ScrollView:
+            GridLayout:
+                id: list_box
+                cols: 1
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: dp(6)
+        GhostBtn:
+            text: 'Back'
+            on_release: app.root.current = 'home'
+
+<RecordDetailScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: dp(16)
+        spacing: dp(8)
+        Heading:
+            id: heading
+            text: ''
+        ScrollView:
+            Label:
+                id: report
+                text: ''
+                markup: True
+                size_hint_y: None
+                height: self.texture_size[1]
+                text_size: self.width, None
+                halign: 'left'
+                valign: 'top'
+        BoxLayout:
+            size_hint_y: None
+            height: dp(48)
+            spacing: dp(8)
+            Btn:
+                text: 'Download PDF'
+                on_release: root.open_pdf()
+            GhostBtn:
+                text: 'Back'
+                on_release: app.root.current = 'records'
+
+<MarksScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: dp(16)
+        spacing: dp(8)
+        Heading:
+            text: 'Marks'
+        Spin:
+            id: subject_spin
+            text: 'Loading subjects...'
+            on_text: root.load_assessments()
+        BoxLayout:
+            size_hint_y: None
+            height: dp(44)
+            spacing: dp(6)
+            Field:
+                id: new_code
+                hint_text: 'Code'
+                size_hint_x: 0.3
+            Field:
+                id: new_name
+                hint_text: 'New subject name'
+            GhostBtn:
+                text: '+ Subject'
+                size_hint_x: 0.35
+                height: dp(44)
+                on_release: root.add_subject()
+        Spin:
+            id: assess_spin
+            text: 'No assessment'
+            on_text: root.load_marks()
+        BoxLayout:
+            size_hint_y: None
+            height: dp(44)
+            spacing: dp(6)
+            Spin:
+                id: kind_spin
+                text: 'Quiz'
+                values: ['Quiz', 'Assignment', 'Mid-term', 'Final']
+            Field:
+                id: max_in
+                hint_text: 'Max marks'
+                input_filter: 'float'
+                size_hint_x: 0.5
+            GhostBtn:
+                text: '+ Assessment'
+                size_hint_x: 0.7
+                height: dp(44)
+                on_release: root.add_assessment()
+        Note:
+            id: status
+            text: ''
+        ScrollView:
+            GridLayout:
+                id: grid
+                cols: 1
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: dp(4)
+        BoxLayout:
+            size_hint_y: None
+            height: dp(48)
+            spacing: dp(8)
+            Btn:
+                text: 'Save marks'
+                on_release: root.save()
+            GhostBtn:
+                text: 'Back'
                 on_release: app.root.current = 'home'

@@ -72,6 +72,9 @@ class Api:
     def subjects(self):
         return self._request("GET", "/api/subjects")["subjects"]
 
+    def create_subject(self, code, name):
+        return self._request("POST", "/api/subjects", json={"code": code, "name": name})
+
     def create_session(self, title, subject_id=None):
         body = {"title": title}
         if subject_id is not None:
@@ -95,6 +98,37 @@ class Api:
             "/api/sessions/%d/mark" % session_id,
             json={"student_id": student_id, "present": present},
         )
+
+    def student_record(self, student_id):
+        return self._request("GET", "/api/students/%d" % student_id)
+
+    def assessments(self, subject_id):
+        return self._request("GET", "/api/subjects/%d/assessments" % subject_id)["assessments"]
+
+    def create_assessment(self, subject_id, kind, title, max_marks):
+        return self._request(
+            "POST",
+            "/api/subjects/%d/assessments" % subject_id,
+            json={"kind": kind, "title": title, "max_marks": max_marks},
+        )
+
+    def marks(self, assessment_id):
+        return self._request("GET", "/api/assessments/%d/marks" % assessment_id)
+
+    def set_marks(self, assessment_id, marks):
+        """marks: {student_id: number or None}."""
+        return self._request(
+            "PUT",
+            "/api/assessments/%d/marks" % assessment_id,
+            json={"marks": {str(k): v for k, v in marks.items()}},
+        )
+
+    def pdf_url(self, student_id):
+        url = "%s/api/students/%d/report.pdf" % (self.base_url, student_id)
+        return url + ("?key=" + self.key if self.key else "")
+
+    def dashboard_url(self):
+        return self.base_url + "/" + ("?key=" + self.key if self.key else "")
 
     def csv_url(self, session_id):
         url = "%s/api/sessions/%d/export.csv" % (self.base_url, session_id)

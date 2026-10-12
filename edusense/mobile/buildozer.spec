@@ -4,7 +4,7 @@
 title = EduSense AI
 package.name = edusense
 package.domain = org.edusense
-version = 0.2.0
+version = 0.3.0
 
 # ---- sources --------------------------------------------------------------
 source.dir = .
