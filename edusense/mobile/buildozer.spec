@@ -4,11 +4,11 @@
 title = EduSense AI
 package.name = edusense
 package.domain = org.edusense
-version = 0.3.0
+version = 0.5.0
 
 # ---- sources --------------------------------------------------------------
 source.dir = .
-source.include_exts = py,kv,png,jpg,atlas,xml
+source.include_exts = py,kv,png,jpg,atlas,xml,ttf
 
 # ---- python / kivy --------------------------------------------------------
 # plyer + pyjnius + android: camera, file picker and runtime permissions

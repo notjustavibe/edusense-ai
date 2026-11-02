@@ -1,354 +1,1407 @@
 #:kivy 2.3.0
 
-<Btn@Button>:
+# =====================================================================
+#  Base text styles. Every height comes from the text itself, so nothing
+#  can overlap, whatever the phone density or the chosen font size.
+# =====================================================================
+<Txt@Label>:
     size_hint_y: None
-    height: dp(48)
-    bold: True
-    background_normal: ''
-    background_color: 0.16, 0.45, 0.9, 1
+    height: self.texture_size[1]
+    text_size: self.width, None
+    halign: 'left'
+    valign: 'top'
+    markup: True
+    fg: []
+    color: self.fg if self.fg else app.th.text
+    font_size: sp(15) * app.th.scale
+    line_height: 1.25
 
-<GhostBtn@Button>:
+<H2@Txt>:
+    bold: True
+    font_size: sp(17) * app.th.scale
+
+<Title@Txt>:
+    bold: True
+    font_size: sp(24) * app.th.scale
+    line_height: 1.15
+
+<Muted@Txt>:
+    color: self.fg if self.fg else app.th.muted
+    font_size: sp(13) * app.th.scale
+
+<Cap@Txt>:
+    bold: True
+    color: self.fg if self.fg else app.th.muted
+    font_size: sp(12) * app.th.scale
+
+<VBox@BoxLayout>:
+    orientation: 'vertical'
     size_hint_y: None
-    height: dp(48)
-    background_normal: ''
-    background_color: 0.2, 0.25, 0.35, 1
+    height: self.minimum_height
+    spacing: dp(3)
+
+<HRow@BoxLayout>:
+    size_hint_y: None
+    height: self.minimum_height
+    spacing: dp(12)
+
+# =====================================================================
+#  Surfaces
+# =====================================================================
+<Card@BoxLayout>:
+    orientation: 'vertical'
+    size_hint_y: None
+    height: self.minimum_height
+    padding: dp(16)
+    spacing: dp(12)
+    canvas.before:
+        Color:
+            rgba: app.th.border
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(16)]
+        Color:
+            rgba: app.th.surface
+        RoundedRectangle:
+            pos: self.x + dp(1), self.y + dp(1)
+            size: self.width - dp(2), self.height - dp(2)
+            radius: [dp(15)]
+
+<TapCard@ButtonBehavior+Card>:
+    canvas.after:
+        Color:
+            rgba: (0, 0, 0, .16) if self.state == 'down' else (0, 0, 0, 0)
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(16)]
+
+<Hero@BoxLayout>:
+    orientation: 'vertical'
+    size_hint_y: None
+    height: self.minimum_height
+    padding: dp(20)
+    spacing: dp(4)
+    canvas.before:
+        Color:
+            rgba: app.th.accent
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(20)]
+
+<Col@BoxLayout>:
+    orientation: 'vertical'
+    size_hint_y: None
+    height: self.minimum_height
+    padding: dp(16)
+    spacing: dp(14)
+
+<Page@ScrollView>:
+    do_scroll_x: False
+    bar_width: dp(3)
+    scroll_type: ['bars', 'content']
+
+<BottomBar@BoxLayout>:
+    size_hint_y: None
+    height: self.minimum_height
+    padding: dp(16), dp(10)
+    spacing: dp(10)
+    canvas.before:
+        Color:
+            rgba: app.th.surface
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: app.th.border
+        Rectangle:
+            pos: self.x, self.top - dp(1)
+            size: self.width, dp(1)
+
+<Collapse>:
+    orientation: 'vertical'
+    size_hint_y: None
+    spacing: dp(10)
+    height: self.minimum_height if self.open else 0
+    opacity: 1 if self.open else 0
+    disabled: not self.open
+
+# =====================================================================
+#  Controls
+# =====================================================================
+<Btn@ButtonBehavior+Label>:
+    kind: 'primary'
+    size_hint_y: None
+    height: max(dp(50), self.font_size * 2.8)
+    font_size: sp(15) * app.th.scale
+    bold: True
+    halign: 'center'
+    valign: 'middle'
+    shorten: True
+    shorten_from: 'right'
+    text_size: self.width - dp(20), self.height
+    color: app.th.accent_fg if self.kind in ('primary', 'danger') else app.th.text
+    opacity: .45 if self.disabled else 1
+    canvas.before:
+        Color:
+            rgba: app.th.accent if self.kind == 'primary' else (app.th.bad if self.kind == 'danger' else app.th.surface2)
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(12)]
+        Color:
+            rgba: app.th.border if self.kind == 'ghost' else (0, 0, 0, 0)
+        Line:
+            rounded_rectangle: self.x, self.y, self.width, self.height, dp(12)
+            width: dp(1)
+    canvas.after:
+        Color:
+            rgba: (0, 0, 0, .2) if self.state == 'down' else (0, 0, 0, 0)
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(12)]
+
+<GhostBtn@Btn>:
+    kind: 'ghost'
+
+<DangerBtn@Btn>:
+    kind: 'danger'
+
+<MiniBtn@Btn>:
+    kind: 'ghost'
+    height: dp(40)
+    size_hint_x: None
+    width: dp(86)
+    font_size: sp(13) * min(app.th.scale, 1.2)
+
+<IconBtn@ButtonBehavior+Label>:
+    size_hint: None, None
+    size: dp(40), dp(40)
+    font_size: sp(15)
+    bold: True
+    color: app.th.text
+    canvas.before:
+        Color:
+            rgba: app.th.surface2
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(12)]
+    canvas.after:
+        Color:
+            rgba: (0, 0, 0, .2) if self.state == 'down' else (0, 0, 0, 0)
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(12)]
 
 <Field@TextInput>:
     size_hint_y: None
-    height: dp(44)
     multiline: False
-    padding: dp(10), dp(12)
-    background_color: 0.12, 0.15, 0.22, 1
-    foreground_color: 1, 1, 1, 1
-    hint_text_color: 0.55, 0.6, 0.7, 1
-    cursor_color: 1, 1, 1, 1
-
-<Spin@Spinner>:
-    size_hint_y: None
-    height: dp(44)
+    height: max(dp(50), self.minimum_height)
+    padding: dp(14), dp(13)
+    font_size: sp(15) * app.th.scale
+    write_tab: False
     background_normal: ''
-    background_color: 0.12, 0.15, 0.22, 1
+    background_active: ''
+    background_disabled_normal: ''
+    background_color: 0, 0, 0, 0
+    foreground_color: app.th.text
+    disabled_foreground_color: app.th.muted
+    hint_text_color: app.th.muted
+    cursor_color: app.th.accent
+    selection_color: app.th.accent[0], app.th.accent[1], app.th.accent[2], .35
+    canvas.before:
+        Color:
+            rgba: app.th.accent if self.focus else app.th.border
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(12)]
+        Color:
+            rgba: app.th.surface2
+        RoundedRectangle:
+            pos: self.x + dp(1.5), self.y + dp(1.5)
+            size: self.width - dp(3), self.height - dp(3)
+            radius: [dp(11)]
+        # Kivy's own TextInput rule ends canvas.before with the TEXT colour; restore it after our drawing.
+        Color:
+            rgba: self.disabled_foreground_color if self.disabled else (self.hint_text_color if not self.text else self.foreground_color)
 
-<Heading@Label>:
+<Select>:
     size_hint_y: None
-    height: dp(40)
-    font_size: '20sp'
+    height: max(dp(58), self.minimum_height)
+    padding: dp(14), dp(9)
+    spacing: dp(8)
+    canvas.before:
+        Color:
+            rgba: app.th.border
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(12)]
+        Color:
+            rgba: app.th.surface2
+        RoundedRectangle:
+            pos: self.x + dp(1.5), self.y + dp(1.5)
+            size: self.width - dp(3), self.height - dp(3)
+            radius: [dp(11)]
+    BoxLayout:
+        orientation: 'vertical'
+        size_hint_y: None
+        height: self.minimum_height
+        pos_hint: {'center_y': .5}
+        Muted:
+            text: root.caption
+            font_size: sp(11.5) * app.th.scale
+        Txt:
+            text: root.text or root.placeholder
+            bold: bool(root.text)
+            fg: app.th.text if root.text else app.th.muted
+    Label:
+        text: '▾'
+        font_name: 'Icons'
+        size_hint_x: None
+        width: dp(18)
+        color: app.th.muted
+
+<Pill@Label>:
+    tone: 'info'
+    size_hint: None, None
+    size: self.texture_size[0] + dp(20), self.texture_size[1] + dp(10)
+    font_size: sp(12) * app.th.scale
     bold: True
-    halign: 'left'
-    text_size: self.width, None
+    color: app.th.ok if self.tone == 'ok' else (app.th.bad if self.tone == 'bad' else (app.th.warn if self.tone == 'warn' else (app.th.muted if self.tone == 'muted' else app.th.accent)))
+    canvas.before:
+        Color:
+            rgba: self.color[0], self.color[1], self.color[2], .16
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [self.height / 2]
 
-<Note@Label>:
+<Chip@ButtonBehavior+Label>:
+    active: False
+    size_hint: None, None
+    size: self.texture_size[0] + dp(28), max(dp(36), self.texture_size[1] + dp(16))
+    font_size: sp(13.5) * app.th.scale
+    bold: True
+    color: app.th.accent_fg if self.active else app.th.text
+    canvas.before:
+        Color:
+            rgba: app.th.accent if self.active else app.th.surface2
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [self.height / 2]
+
+<Avatar@Label>:
+    size_hint: None, None
+    size: dp(44), dp(44)
+    bold: True
+    font_size: sp(15)
+    color: app.th.accent
+    canvas.before:
+        Color:
+            rgba: app.th.accent[0], app.th.accent[1], app.th.accent[2], .16
+        Ellipse:
+            pos: self.pos
+            size: self.size
+
+<IconDot@Label>:
+    size_hint: None, None
+    size: dp(42), dp(42)
+    font_name: 'Icons'
+    font_size: sp(20)
+    color: app.th.accent
+    canvas.before:
+        Color:
+            rgba: app.th.accent[0], app.th.accent[1], app.th.accent[2], .16
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(13)]
+
+<Logo@Label>:
+    text: 'E'
+    size_hint: None, None
+    size: dp(76), dp(76)
+    font_size: sp(36)
+    bold: True
+    color: app.th.accent_fg
+    canvas.before:
+        Color:
+            rgba: app.th.accent
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(24)]
+
+<Dot@Widget>:
+    tone: 'ok'
+    size_hint: None, None
+    size: dp(10), dp(10)
+    canvas:
+        Color:
+            rgba: app.th.ok if self.tone == 'ok' else (app.th.bad if self.tone == 'bad' else app.th.muted)
+        Ellipse:
+            pos: self.pos
+            size: self.size
+
+<Bar@Widget>:
+    value: 0
+    tone: 'ok'
     size_hint_y: None
-    height: max(dp(28), self.texture_size[1])
-    font_size: '13sp'
-    color: 0.7, 0.78, 0.9, 1
-    halign: 'left'
-    text_size: self.width, None
+    height: dp(7)
+    canvas:
+        Color:
+            rgba: app.th.surface2
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(3.5)]
+        Color:
+            rgba: app.th.ok if self.tone == 'ok' else (app.th.bad if self.tone == 'bad' else (app.th.warn if self.tone == 'warn' else app.th.muted))
+        RoundedRectangle:
+            pos: self.pos
+            size: (max(self.width * min(max(self.value, 0), 100) / 100., dp(7)) if self.value > 0 else 0), self.height
+            radius: [dp(3.5)]
 
-ScreenManager:
-    HomeScreen:
-        name: 'home'
-    StudentsScreen:
-        name: 'students'
-    EnrollScreen:
-        name: 'enroll'
-    SessionScreen:
-        name: 'session'
-    RecordsScreen:
-        name: 'records'
-    RecordDetailScreen:
-        name: 'detail'
-    MarksScreen:
-        name: 'marks'
+<Stat@BoxLayout>:
+    number: ''
+    caption: ''
+    tone: 'info'
+    orientation: 'vertical'
+    size_hint_y: None
+    height: self.minimum_height
+    padding: dp(8), dp(12)
+    spacing: dp(2)
+    canvas.before:
+        Color:
+            rgba: app.th.surface2
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(12)]
+    Txt:
+        text: root.number
+        bold: True
+        halign: 'center'
+        font_size: sp(24) * app.th.scale
+        fg: app.th.ok if root.tone == 'ok' else (app.th.bad if root.tone == 'bad' else app.th.accent)
+    Muted:
+        text: root.caption
+        halign: 'center'
+        font_size: sp(12) * app.th.scale
+
+<Notice@Label>:
+    tone: 'info'
+    size_hint_y: None
+    height: (self.texture_size[1] + dp(24)) if self.text else 0
+    opacity: 1 if self.text else 0
+    text_size: self.width - dp(24), None
+    halign: 'left'
+    valign: 'middle'
+    markup: True
+    line_height: 1.25
+    font_size: sp(14) * app.th.scale
+    color: app.th.ok if self.tone == 'ok' else (app.th.bad if self.tone == 'bad' else (app.th.warn if self.tone == 'warn' else app.th.text))
+    canvas.before:
+        Color:
+            rgba: (app.th.ok if self.tone == 'ok' else (app.th.bad if self.tone == 'bad' else (app.th.warn if self.tone == 'warn' else app.th.accent)))[:3] + [.14]
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(12)]
+
+<KV@BoxLayout>:
+    k: ''
+    v: ''
+    size_hint_y: None
+    height: self.minimum_height
+    spacing: dp(10)
+    Txt:
+        text: root.k
+        fg: app.th.muted
+    Txt:
+        text: root.v
+        halign: 'right'
+        bold: True
+        size_hint_x: None
+        width: dp(112)
+
+<Footer@Label>:
+    size_hint_y: None
+    height: self.texture_size[1] + dp(24)
+    text_size: self.width, None
+    halign: 'center'
+    valign: 'middle'
+    markup: True
+    font_size: sp(12) * min(app.th.scale, 1.2)
+    color: app.th.muted
+    text: 'made with [color=ee5a6f][font=Icons]❣[/font][/color] by [b]Muhammad Qasim Ashfaq[/b]'
+
+# =====================================================================
+#  Top bar: back, title, font size and light/dark switches
+# =====================================================================
+<AppBar@BoxLayout>:
+    title: ''
+    back: True
+    size_hint_y: None
+    height: dp(62)
+    padding: dp(12), dp(11)
+    spacing: dp(8)
+    canvas.before:
+        Color:
+            rgba: app.th.surface
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: app.th.border
+        Rectangle:
+            pos: self.x, self.y
+            size: self.width, dp(1)
+    IconBtn:
+        text: '←'
+        font_name: 'Icons'
+        font_size: sp(19)
+        opacity: 1 if root.back else 0
+        disabled: not root.back
+        width: dp(40) if root.back else 0
+        on_release: app.back()
+    Label:
+        text: root.title
+        bold: True
+        font_size: sp(18) * min(app.th.scale, 1.25)
+        color: app.th.text
+        halign: 'left'
+        valign: 'middle'
+        shorten: True
+        shorten_from: 'right'
+        text_size: self.size
+    IconBtn:
+        text: 'A-'
+        on_release: app.th.smaller()
+    IconBtn:
+        text: 'A+'
+        on_release: app.th.bigger()
+    IconBtn:
+        text: '☀' if app.th.dark else '☾'
+        font_name: 'Icons'
+        font_size: sp(19)
+        on_release: app.th.toggle()
+
+# =====================================================================
+#  Overlays
+# =====================================================================
+<OptionRow@ButtonBehavior+BoxLayout>:
+    text: ''
+    picked: False
+    size_hint_y: None
+    height: max(dp(56), self.minimum_height)
+    padding: dp(20), dp(12)
+    spacing: dp(10)
+    canvas.before:
+        Color:
+            rgba: (app.th.accent[0], app.th.accent[1], app.th.accent[2], .12) if self.picked else (0, 0, 0, 0)
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: app.th.border
+        Rectangle:
+            pos: self.x + dp(20), self.y
+            size: self.width - dp(40), dp(1)
+    Txt:
+        text: root.text
+        bold: root.picked
+        fg: app.th.accent if root.picked else app.th.text
+        pos_hint: {'center_y': .5}
+    Label:
+        text: '✓' if root.picked else ''
+        font_name: 'Icons'
+        size_hint_x: None
+        width: dp(24)
+        color: app.th.accent
+
+<Sheet>:
+    size_hint: 1, 1
+    anchor_x: 'center'
+    anchor_y: 'bottom'
+    background: ''
+    background_color: 0, 0, 0, 0
+    overlay_color: 0, 0, 0, .55
+    BoxLayout:
+        id: panel
+        orientation: 'vertical'
+        size_hint: None, None
+        width: min(root.width, dp(600))
+        height: self.minimum_height
+        padding: 0, dp(20), 0, dp(24)
+        spacing: dp(8)
+        canvas.before:
+            Color:
+                rgba: app.th.surface
+            RoundedRectangle:
+                pos: self.pos
+                size: self.size
+                radius: [dp(22), dp(22), 0, 0]
+        H2:
+            text: root.title
+            padding_x: dp(20)
+        ScrollView:
+            size_hint_y: None
+            height: min(rows.height, max(root.max_h - dp(90), dp(120)))
+            do_scroll_x: False
+            BoxLayout:
+                id: rows
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+
+<Dialog>:
+    size_hint: .92, None
+    size_hint_max_x: dp(440)
+    height: box.height
+    auto_dismiss: False
+    background: ''
+    background_color: 0, 0, 0, 0
+    overlay_color: 0, 0, 0, .6
+    BoxLayout:
+        id: box
+        orientation: 'vertical'
+        size_hint_y: None
+        height: self.minimum_height
+        padding: dp(20)
+        spacing: dp(14)
+        canvas.before:
+            Color:
+                rgba: app.th.border
+            RoundedRectangle:
+                pos: self.pos
+                size: self.size
+                radius: [dp(20)]
+            Color:
+                rgba: app.th.surface
+            RoundedRectangle:
+                pos: self.x + dp(1), self.y + dp(1)
+                size: self.width - dp(2), self.height - dp(2)
+                radius: [dp(19)]
+        H2:
+            text: root.title
+        Txt:
+            text: root.message
+            fg: app.th.muted
+        Collapse:
+            open: root.with_field
+            Field:
+                id: field
+                hint_text: root.hint
+                password: root.password
+                on_text_validate: root.accept()
+        BoxLayout:
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: dp(10)
+            GhostBtn:
+                text: 'Cancel'
+                on_release: root.dismiss()
+            Btn:
+                text: root.ok_text
+                kind: 'danger' if root.danger else 'primary'
+                on_release: root.accept()
+
+<Toast>:
+    opacity: 0
+    size_hint: None, None
+    text_size: dp(300), None
+    size: dp(300) + dp(32), self.texture_size[1] + dp(24)
+    pos_hint: {'center_x': .5}
+    y: dp(96)
+    halign: 'center'
+    valign: 'middle'
+    font_size: sp(14)
+    color: 1, 1, 1, 1
+    canvas.before:
+        Color:
+            rgba: (.82, .23, .23, .97) if self.bad else (.10, .13, .2, .97)
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(14)]
+
+# =====================================================================
+#  Rows used in lists
+# =====================================================================
+<SessionRow@TapCard>:
+    title: ''
+    meta: ''
+    badge: ''
+    padding: dp(14)
+    HRow:
+        VBox:
+            Txt:
+                text: root.title
+                bold: True
+            Muted:
+                text: root.meta
+        Pill:
+            text: root.badge
+            tone: 'ok'
+            pos_hint: {'center_y': .5}
+
+<StudentCard@TapCard>:
+    name: ''
+    roll: ''
+    initials: ''
+    pct_text: ''
+    pct: 0
+    tone: 'ok'
+    padding: dp(14)
+    spacing: dp(10)
+    HRow:
+        Avatar:
+            text: root.initials
+            pos_hint: {'center_y': .5}
+        VBox:
+            pos_hint: {'center_y': .5}
+            Txt:
+                text: root.name
+                bold: True
+            Muted:
+                text: root.roll
+        Pill:
+            text: root.pct_text
+            tone: root.tone
+            pos_hint: {'center_y': .5}
+    Bar:
+        value: root.pct
+        tone: root.tone
+
+<PersonRow@BoxLayout>:
+    name: ''
+    sub: ''
+    tone: 'ok'
+    size_hint_y: None
+    height: self.minimum_height
+    spacing: dp(12)
+    padding: 0, dp(7)
+    canvas.after:
+        Color:
+            rgba: app.th.border
+        Rectangle:
+            pos: self.x, self.y
+            size: self.width, dp(1)
+    Dot:
+        tone: root.tone
+        pos_hint: {'center_y': .5}
+    VBox:
+        Txt:
+            text: root.name
+            bold: True
+        Muted:
+            text: root.sub
+
+<MarkRow@BoxLayout>:
+    name: ''
+    roll: ''
+    value: ''
+    size_hint_y: None
+    height: max(self.minimum_height, dp(60))
+    spacing: dp(12)
+    padding: 0, dp(5)
+    canvas.after:
+        Color:
+            rgba: app.th.border
+        Rectangle:
+            pos: self.x, self.y
+            size: self.width, dp(1)
+    VBox:
+        pos_hint: {'center_y': .5}
+        Txt:
+            text: root.name
+            bold: True
+        Muted:
+            text: root.roll
+    Field:
+        id: box
+        text: root.value
+        hint_text: '-'
+        input_filter: 'float'
+        halign: 'center'
+        size_hint_x: None
+        width: dp(96)
+        pos_hint: {'center_y': .5}
+
+<SubjectCard@Card>:
+    code: ''
+    sname: ''
+    line: ''
+    pct_text: ''
+    pct: 0
+    tone: 'ok'
+    HRow:
+        VBox:
+            pos_hint: {'center_y': .5}
+            Txt:
+                text: root.code
+                bold: True
+            Muted:
+                text: root.sname
+        Pill:
+            text: root.pct_text
+            tone: root.tone
+            pos_hint: {'center_y': .5}
+    Bar:
+        value: root.pct
+        tone: root.tone
+    Muted:
+        text: root.line
+    VBox:
+        id: rows
+        spacing: dp(8)
+
+<TeacherCard@Card>:
+    name: ''
+    active: True
+    HRow:
+        Avatar:
+            text: root.name[:1].upper()
+            pos_hint: {'center_y': .5}
+        Txt:
+            text: root.name
+            bold: True
+            pos_hint: {'center_y': .5}
+        Pill:
+            text: 'Active' if root.active else 'Disabled'
+            tone: 'ok' if root.active else 'bad'
+            pos_hint: {'center_y': .5}
+    BoxLayout:
+        id: actions
+        size_hint_y: None
+        height: dp(46)
+        spacing: dp(8)
+
+<ActionTile@TapCard>:
+    icon: ''
+    title: ''
+    sub: ''
+    height: max(self.minimum_height, dp(118))
+    padding: dp(14)
+    spacing: dp(8)
+    IconDot:
+        text: root.icon
+    VBox:
+        Txt:
+            text: root.title
+            bold: True
+        Muted:
+            text: root.sub
+
+# =====================================================================
+#  Screens
+# =====================================================================
+FloatLayout:
+    canvas.before:
+        Color:
+            rgba: app.th.bg
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    ScreenManager:
+        id: sm
+        SplashScreen:
+            name: 'splash'
+        LoginScreen:
+            name: 'login'
+        HomeScreen:
+            name: 'home'
+        StudentsScreen:
+            name: 'students'
+        EnrollScreen:
+            name: 'enroll'
+        SessionScreen:
+            name: 'session'
+        RecordsScreen:
+            name: 'records'
+        RecordDetailScreen:
+            name: 'detail'
+        MarksScreen:
+            name: 'marks'
+        TeachersScreen:
+            name: 'teachers'
+        AccountScreen:
+            name: 'account'
+    Toast:
+        id: toast
+
+<SplashScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: dp(24)
+        spacing: dp(12)
+        Widget:
+        Logo:
+            pos_hint: {'center_x': .5}
+        Title:
+            text: 'EduSense AI'
+            halign: 'center'
+        Muted:
+            text: 'Loading...'
+            halign: 'center'
+        Widget:
+
+<LoginScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        AppBar:
+            title: 'Sign in'
+            back: False
+        Page:
+            Col:
+                padding: dp(16), dp(24), dp(16), dp(16)
+                Logo:
+                    pos_hint: {'center_x': .5}
+                Title:
+                    text: 'EduSense AI'
+                    halign: 'center'
+                Muted:
+                    text: 'Face-recognition attendance and student records'
+                    halign: 'center'
+                Card:
+                    Cap:
+                        text: 'SERVER'
+                    Field:
+                        id: server_in
+                        hint_text: 'https://your-server.onrender.com'
+                        input_type: 'text'
+                        keyboard_suggestions: False
+                    Cap:
+                        text: 'SIGN IN AS'
+                    BoxLayout:
+                        size_hint_y: None
+                        height: self.minimum_height
+                        spacing: dp(8)
+                        Btn:
+                            id: mode_teacher
+                            text: 'Teacher'
+                            kind: 'ghost' if root.admin_mode else 'primary'
+                            on_release: root.set_mode(False)
+                        Btn:
+                            id: mode_admin
+                            text: 'Admin'
+                            kind: 'primary' if root.admin_mode else 'ghost'
+                            on_release: root.set_mode(True)
+                    Collapse:
+                        open: not root.admin_mode
+                        Field:
+                            id: user_in
+                            hint_text: 'Username'
+                        Field:
+                            id: pass_in
+                            hint_text: 'Password'
+                            password: True
+                            on_text_validate: root.login()
+                    Collapse:
+                        open: root.admin_mode
+                        Field:
+                            id: key_in
+                            hint_text: 'Admin key'
+                            password: True
+                            on_text_validate: root.login()
+                    Btn:
+                        id: login_btn
+                        text: 'Log in'
+                        on_release: root.login()
+                    Notice:
+                        id: status
+        Footer:
 
 <HomeScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(16)
-        spacing: dp(8)
-        Heading:
-            text: 'EduSense AI  (v0.3.0)'
-        Field:
-            id: server_in
-            hint_text: 'Server URL, e.g. http://192.168.1.10:5000'
-        Field:
-            id: key_in
-            hint_text: 'API key (optional)'
-            password: True
-        BoxLayout:
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(8)
-            Btn:
-                text: 'Save & test'
-                on_release: root.save_and_test()
-            GhostBtn:
-                text: 'Students'
-                on_release: app.root.current = 'students'
-        Note:
-            id: status
-            text: ''
-        BoxLayout:
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(8)
-            Btn:
-                text: 'Records'
-                on_release: app.root.current = 'records'
-            Btn:
-                text: 'Marks'
-                on_release: app.root.current = 'marks'
-            GhostBtn:
-                text: 'Dashboard'
-                on_release: root.open_dashboard()
-        Spin:
-            id: subject_spin
-            text: 'Loading subjects...'
-        Field:
-            id: title_in
-            hint_text: 'New session title, e.g. Week 5'
-        Btn:
-            text: 'Start attendance session'
-            on_release: root.start_session()
-        Heading:
-            text: 'Recent sessions'
-        ScrollView:
-            GridLayout:
-                id: sessions_box
-                cols: 1
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: dp(6)
+        AppBar:
+            title: 'EduSense AI'
+            back: False
+        Page:
+            Col:
+                Hero:
+                    Txt:
+                        id: hello
+                        text: 'Hello'
+                        fg: 1, 1, 1, .85
+                        font_size: sp(14) * app.th.scale
+                    Txt:
+                        id: who
+                        text: ''
+                        bold: True
+                        fg: 1, 1, 1, 1
+                        font_size: sp(24) * app.th.scale
+                    Txt:
+                        id: role
+                        text: ''
+                        fg: 1, 1, 1, .85
+                        font_size: sp(13) * app.th.scale
+                Card:
+                    H2:
+                        text: 'Take attendance'
+                    Select:
+                        id: subject_spin
+                        caption: 'Subject'
+                        placeholder: 'Loading subjects...'
+                    Field:
+                        id: title_in
+                        hint_text: 'Session title, e.g. Week 5'
+                        on_text_validate: root.start_session()
+                    Btn:
+                        id: start_btn
+                        text: 'Start session'
+                        on_release: root.start_session()
+                    Notice:
+                        id: status
+                Cap:
+                    text: 'MANAGE'
+                GridLayout:
+                    cols: 2
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: dp(12)
+                    ActionTile:
+                        icon: '☺'
+                        title: 'Students'
+                        sub: 'Enroll and manage'
+                        on_release: app.go('students')
+                    ActionTile:
+                        icon: '≣'
+                        title: 'Records'
+                        sub: 'Attendance, profiles'
+                        on_release: app.go('records')
+                    ActionTile:
+                        icon: '✎'
+                        title: 'Marks'
+                        sub: 'Quiz, mid, final'
+                        on_release: app.go('marks')
+                    ActionTile:
+                        icon: '◔'
+                        title: 'Dashboard'
+                        sub: 'Open the web view'
+                        on_release: root.open_dashboard()
+                    ActionTile:
+                        icon: '✱'
+                        title: 'Account'
+                        sub: 'Password, about'
+                        on_release: app.go('account')
+                    ActionTile:
+                        id: tile6
+                        icon: '⚙'
+                        title: 'Teachers'
+                        sub: 'Accounts and access'
+                        on_release: root.tile6()
+                BoxLayout:
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: dp(10)
+                    H2:
+                        text: 'Recent sessions'
+                        size_hint_x: 1
+                Page:
+                    size_hint_y: None
+                    height: dp(40)
+                    do_scroll_y: False
+                    do_scroll_x: True
+                    BoxLayout:
+                        id: chip_box
+                        size_hint: None, None
+                        height: dp(40)
+                        width: self.minimum_width
+                        spacing: dp(8)
+                VBox:
+                    id: sessions_box
+                    spacing: dp(8)
+                GhostBtn:
+                    text: 'Log out'
+                    on_release: root.log_out()
+        Footer:
 
 <StudentsScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(16)
-        spacing: dp(8)
-        Heading:
-            text: 'Students'
-        Note:
-            id: status
-            text: ''
-        ScrollView:
-            GridLayout:
-                id: list_box
-                cols: 1
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: dp(6)
-        Btn:
-            text: 'Enroll new student'
-            on_release: app.root.current = 'enroll'
-        GhostBtn:
-            text: 'Back'
-            on_release: app.root.current = 'home'
+        AppBar:
+            title: 'Students'
+        Page:
+            Col:
+                Notice:
+                    id: status
+                VBox:
+                    id: list_box
+                    spacing: dp(10)
+        BottomBar:
+            Btn:
+                text: 'Enroll new student'
+                on_release: app.go('enroll')
 
 <EnrollScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(16)
-        spacing: dp(8)
-        Heading:
-            text: 'Enroll student'
-        Field:
-            id: roll_in
-            hint_text: 'Roll number'
-        Field:
-            id: name_in
-            hint_text: 'Full name'
-        Note:
-            id: count
-            text: ''
-        BoxLayout:
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(8)
+        AppBar:
+            title: 'Enroll student'
+        Page:
+            Col:
+                Card:
+                    Cap:
+                        text: 'DETAILS'
+                    Field:
+                        id: roll_in
+                        hint_text: 'Roll number'
+                    Field:
+                        id: name_in
+                        hint_text: 'Full name'
+                Card:
+                    Cap:
+                        text: 'FACE PHOTOS'
+                    Txt:
+                        id: count
+                        text: ''
+                    Muted:
+                        text: 'Add 3 to 5 clear, front-facing photos in different light.'
+                    BoxLayout:
+                        size_hint_y: None
+                        height: self.minimum_height
+                        spacing: dp(8)
+                        Btn:
+                            text: 'Camera'
+                            on_release: root.add_photo('camera')
+                        GhostBtn:
+                            text: 'Gallery'
+                            on_release: root.add_photo('gallery')
+                        GhostBtn:
+                            text: 'Clear'
+                            on_release: root.clear_photos()
+                Notice:
+                    id: status
+        BottomBar:
             Btn:
-                text: 'Take photo'
-                on_release: root.add_photo('camera')
-            GhostBtn:
-                text: 'From gallery'
-                on_release: root.add_photo('gallery')
-            GhostBtn:
-                text: 'Clear'
-                on_release: root.clear_photos()
-        Btn:
-            text: 'Enroll'
-            on_release: root.submit()
-        Note:
-            id: status
-            text: ''
-        Widget:
-        GhostBtn:
-            text: 'Back'
-            on_release: app.root.current = 'students'
+                id: enroll_btn
+                text: 'Enroll student'
+                on_release: root.submit()
 
 <SessionScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(16)
-        spacing: dp(8)
-        Heading:
-            id: heading
-            text: ''
-        BoxLayout:
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(8)
-            Btn:
-                text: 'Take class photo'
-                on_release: root.capture('camera')
-            GhostBtn:
-                text: 'From gallery'
-                on_release: root.capture('gallery')
-        Note:
-            id: result
-            text: ''
-            height: max(dp(60), self.texture_size[1])
-        ScrollView:
-            Label:
-                id: report
-                text: ''
-                size_hint_y: None
-                height: self.texture_size[1]
-                text_size: self.width, None
-                halign: 'left'
-                valign: 'top'
-        BoxLayout:
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(8)
+        AppBar:
+            id: bar
+            title: ''
+        Page:
+            Col:
+                Card:
+                    Muted:
+                        id: subtitle
+                        text: ''
+                    Btn:
+                        text: 'Take class photo'
+                        on_release: root.capture('camera')
+                    GhostBtn:
+                        text: 'Choose from gallery'
+                        on_release: root.capture('gallery')
+                    Notice:
+                        id: result
+                Collapse:
+                    id: stats
+                    open: False
+                    BoxLayout:
+                        size_hint_y: None
+                        height: self.minimum_height
+                        spacing: dp(10)
+                        Stat:
+                            id: st_seen
+                            caption: 'Detected'
+                        Stat:
+                            id: st_marked
+                            caption: 'Marked'
+                            tone: 'ok'
+                        Stat:
+                            id: st_unknown
+                            caption: 'Unknown'
+                            tone: 'bad'
+                Card:
+                    HRow:
+                        H2:
+                            text: 'Present'
+                            pos_hint: {'center_y': .5}
+                        Pill:
+                            id: p_count
+                            text: '0'
+                            tone: 'ok'
+                            pos_hint: {'center_y': .5}
+                    VBox:
+                        id: present_box
+                        spacing: 0
+                Card:
+                    HRow:
+                        H2:
+                            text: 'Absent'
+                            pos_hint: {'center_y': .5}
+                        Pill:
+                            id: a_count
+                            text: '0'
+                            tone: 'bad'
+                            pos_hint: {'center_y': .5}
+                    VBox:
+                        id: absent_box
+                        spacing: 0
+        BottomBar:
             GhostBtn:
                 text: 'Refresh'
                 on_release: root.refresh()
             GhostBtn:
-                text: 'Open CSV'
+                text: 'Export CSV'
                 on_release: root.open_csv()
-            GhostBtn:
-                text: 'Done'
-                on_release: app.root.current = 'home'
 
 <RecordsScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(16)
-        spacing: dp(8)
-        Heading:
-            text: 'Student records'
-        Field:
-            id: search_in
-            hint_text: 'Search name or roll number'
-            on_text: root.render()
-        Note:
-            id: status
-            text: ''
-        ScrollView:
-            GridLayout:
-                id: list_box
-                cols: 1
+        AppBar:
+            title: 'Student records'
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None
+            height: self.minimum_height
+            padding: dp(16), dp(12), dp(16), dp(4)
+            spacing: dp(10)
+            Field:
+                id: search_in
+                hint_text: 'Search name or roll number'
+                on_text: root.render()
+            BoxLayout:
                 size_hint_y: None
-                height: self.minimum_height
-                spacing: dp(6)
-        GhostBtn:
-            text: 'Back'
-            on_release: app.root.current = 'home'
+                height: dp(40)
+                spacing: dp(8)
+                Chip:
+                    id: chip_all
+                    text: 'All'
+                    active: not root.only_risk
+                    on_release: root.set_risk(False)
+                Chip:
+                    id: chip_risk
+                    text: 'Below minimum'
+                    active: root.only_risk
+                    on_release: root.set_risk(True)
+                Widget:
+        Page:
+            Col:
+                padding: dp(16), dp(8), dp(16), dp(16)
+                Notice:
+                    id: status
+                VBox:
+                    id: list_box
+                    spacing: dp(10)
 
 <RecordDetailScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(16)
-        spacing: dp(8)
-        Heading:
-            id: heading
-            text: ''
-        ScrollView:
-            Label:
-                id: report
-                text: ''
-                markup: True
-                size_hint_y: None
-                height: self.texture_size[1]
-                text_size: self.width, None
-                halign: 'left'
-                valign: 'top'
-        BoxLayout:
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(8)
+        AppBar:
+            title: 'Student'
+        Page:
+            Col:
+                Card:
+                    HRow:
+                        Avatar:
+                            id: avatar
+                            size: dp(56), dp(56)
+                            font_size: sp(19)
+                            pos_hint: {'center_y': .5}
+                        VBox:
+                            pos_hint: {'center_y': .5}
+                            Title:
+                                id: d_name
+                                text: ''
+                                font_size: sp(20) * app.th.scale
+                            Muted:
+                                id: d_roll
+                                text: ''
+                    Muted:
+                        id: d_info
+                        text: ''
+                Card:
+                    Cap:
+                        text: 'OVERALL ATTENDANCE'
+                    HRow:
+                        Txt:
+                            id: d_overall
+                            text: ''
+                            pos_hint: {'center_y': .5}
+                        Pill:
+                            id: d_pill
+                            text: ''
+                            pos_hint: {'center_y': .5}
+                    Bar:
+                        id: d_bar
+                VBox:
+                    id: subjects_box
+                    spacing: dp(14)
+        BottomBar:
             Btn:
-                text: 'Download PDF'
+                text: 'Download PDF report'
                 on_release: root.open_pdf()
-            GhostBtn:
-                text: 'Back'
-                on_release: app.root.current = 'records'
 
 <MarksScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(16)
-        spacing: dp(8)
-        Heading:
-            text: 'Marks'
-        Spin:
-            id: subject_spin
-            text: 'Loading subjects...'
-            on_text: root.load_assessments()
+        AppBar:
+            title: 'Marks'
         BoxLayout:
+            orientation: 'vertical'
             size_hint_y: None
-            height: dp(44)
-            spacing: dp(6)
-            Field:
-                id: new_code
-                hint_text: 'Code'
-                size_hint_x: 0.3
-            Field:
-                id: new_name
-                hint_text: 'New subject name'
-            GhostBtn:
-                text: '+ Subject'
-                size_hint_x: 0.35
-                height: dp(44)
-                on_release: root.add_subject()
-        Spin:
-            id: assess_spin
-            text: 'No assessment'
-            on_text: root.load_marks()
-        BoxLayout:
-            size_hint_y: None
-            height: dp(44)
-            spacing: dp(6)
-            Spin:
-                id: kind_spin
-                text: 'Quiz'
-                values: ['Quiz', 'Assignment', 'Mid-term', 'Final']
-            Field:
-                id: max_in
-                hint_text: 'Max marks'
-                input_filter: 'float'
-                size_hint_x: 0.5
-            GhostBtn:
-                text: '+ Assessment'
-                size_hint_x: 0.7
-                height: dp(44)
-                on_release: root.add_assessment()
-        Note:
-            id: status
-            text: ''
-        ScrollView:
-            GridLayout:
-                id: grid
-                cols: 1
+            height: self.minimum_height
+            padding: dp(16), dp(12), dp(16), dp(6)
+            spacing: dp(10)
+            Select:
+                id: subject_spin
+                caption: 'Subject'
+                placeholder: 'Loading...'
+                on_pick: root.load_assessments()
+            Select:
+                id: assess_spin
+                caption: 'Assessment'
+                placeholder: 'No assessments yet'
+                on_pick: root.load_marks()
+            BoxLayout:
                 size_hint_y: None
-                height: self.minimum_height
-                spacing: dp(4)
-        BoxLayout:
-            size_hint_y: None
-            height: dp(48)
-            spacing: dp(8)
+                height: dp(40)
+                spacing: dp(8)
+                Chip:
+                    text: '+ Subject'
+                    active: root.panel == 'subject'
+                    on_release: root.toggle_panel('subject')
+                Chip:
+                    text: '+ Assessment'
+                    active: root.panel == 'assessment'
+                    on_release: root.toggle_panel('assessment')
+                Widget:
+        Page:
+            Col:
+                padding: dp(16), dp(8), dp(16), dp(16)
+                Collapse:
+                    open: root.panel == 'subject'
+                    Card:
+                        Cap:
+                            text: 'NEW SUBJECT'
+                        Field:
+                            id: new_code
+                            hint_text: 'Code, e.g. CS101'
+                        Field:
+                            id: new_name
+                            hint_text: 'Subject name'
+                        Btn:
+                            text: 'Add subject'
+                            on_release: root.add_subject()
+                Collapse:
+                    open: root.panel == 'assessment'
+                    Card:
+                        Cap:
+                            text: 'NEW ASSESSMENT'
+                        Select:
+                            id: kind_spin
+                            caption: 'Type'
+                            text: 'Quiz'
+                            values: ['Quiz', 'Assignment', 'Mid-term', 'Final']
+                        Field:
+                            id: max_in
+                            hint_text: 'Maximum marks, e.g. 10'
+                            input_filter: 'float'
+                        Btn:
+                            text: 'Add assessment'
+                            on_release: root.add_assessment()
+                Notice:
+                    id: status
+                Card:
+                    id: grid_card
+                    padding: dp(16), dp(8), dp(16), dp(8)
+                    VBox:
+                        id: grid
+                        spacing: 0
+        BottomBar:
             Btn:
+                id: save_btn
                 text: 'Save marks'
                 on_release: root.save()
-            GhostBtn:
-                text: 'Back'
-                on_release: app.root.current = 'home'
+
+<TeachersScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        AppBar:
+            title: 'Teachers'
+        Page:
+            Col:
+                Card:
+                    H2:
+                        text: 'Add a teacher'
+                    Field:
+                        id: new_user
+                        hint_text: 'Username'
+                    Field:
+                        id: new_pass
+                        hint_text: 'Password, 8+ characters'
+                        password: True
+                        on_text_validate: root.add()
+                    Btn:
+                        text: 'Create teacher'
+                        on_release: root.add()
+                Notice:
+                    id: status
+                VBox:
+                    id: list_box
+                    spacing: dp(12)
+
+<AccountScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        AppBar:
+            title: 'Account'
+        Page:
+            Col:
+                Card:
+                    HRow:
+                        Avatar:
+                            id: avatar
+                            size: dp(56), dp(56)
+                            font_size: sp(19)
+                            pos_hint: {'center_y': .5}
+                        VBox:
+                            pos_hint: {'center_y': .5}
+                            Title:
+                                id: a_name
+                                text: ''
+                                font_size: sp(20) * app.th.scale
+                            Muted:
+                                id: a_role
+                                text: ''
+                Card:
+                    H2:
+                        text: 'Change password'
+                    Field:
+                        id: old_in
+                        hint_text: 'Current password'
+                        password: True
+                    Field:
+                        id: new_in
+                        hint_text: 'New password, 8+ characters'
+                        password: True
+                    Field:
+                        id: new2_in
+                        hint_text: 'Repeat new password'
+                        password: True
+                        on_text_validate: root.submit()
+                    Btn:
+                        text: 'Change password'
+                        on_release: root.submit()
+                    Notice:
+                        id: status
+                Muted:
+                    id: about
+                    text: ''
+                    halign: 'center'
