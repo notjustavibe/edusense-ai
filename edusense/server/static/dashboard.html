@@ -40,6 +40,7 @@ input:focus, select:focus { outline:2px solid var(--accent); outline-offset:0; }
 button.btn { cursor:pointer; }
 button.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
 button.danger { color:var(--bad); }
+body.is-teacher #del-student, body.is-teacher #subject-del, body.is-teacher #assess-del { display:none; }
 a.btn { display:inline-block; text-decoration:none; font-weight:600; background:var(--accent);
         color:var(--accent-ink); padding:9px 14px; border-radius:8px; }
 .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
@@ -76,19 +77,26 @@ tr.sel td { background:var(--panel2); }
 .field label { font-size:12px; color:var(--muted); }
 .marks-in { width:90px; text-align:right; }
 .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
-.session-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:12px; }
-.session-card { border:1px solid var(--line); border-radius:10px; padding:12px; min-width:0; cursor:pointer; background:var(--panel); }
-.session-card:hover,.session-card.sel { background:var(--panel2); border-color:var(--accent); }
-.session-card h3 { margin:0 0 6px; font-size:15px; overflow-wrap:anywhere; }
-.session-meta { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; }
-.session-detail { grid-column:1/-1; min-width:0; overflow-wrap:anywhere; }
-@media (max-width:600px) { main { padding:10px; } .panel { padding:12px; } .session-cards { grid-template-columns:minmax(0,1fr); } .session-card { width:100%; } .chips { gap:6px; } .chip-btn { max-width:100%; white-space:normal; overflow-wrap:anywhere; } }
 .empty { padding:26px; text-align:center; color:var(--muted); }
 #toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--text);
          color:var(--bg); padding:10px 16px; border-radius:10px; opacity:0; pointer-events:none;
          transition:opacity .2s; max-width:90vw; z-index:20; }
 #toast.show { opacity:1; } #toast.err { background:var(--bad); color:#fff; }
 #detail { scroll-margin-top: 120px; }
+video.cam { width:100%; max-width:560px; aspect-ratio:16/9; background:#000; border-radius:10px; transform:scaleX(-1); display:block; }
+.shots { display:flex; gap:8px; flex-wrap:wrap; }
+.shots img { width:64px; height:64px; object-fit:cover; border-radius:8px; border:1px solid var(--line); cursor:pointer; }
+.pill { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; background:var(--panel2); border:1px solid var(--line); }
+.pill.ok { color:var(--ok, #3ecf8e); } .pill.warn { color:var(--bad); }
+label.btn { cursor:pointer; display:inline-block; font:inherit; color:var(--text); background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+#login { position:fixed; inset:0; z-index:20; background:var(--bg, #0f1420); display:flex; align-items:center; justify-content:center; padding:16px; }
+#login .panel { width:100%; max-width:380px; }
+#login label { display:block; font-size:13px; color:var(--muted); margin:12px 0 4px; }
+#login input { width:100%; box-sizing:border-box; }
+#login .modes { display:flex; gap:6px; margin-bottom:6px; }
+#login .modes button { flex:1; }
+#login .modes button[aria-pressed="true"] { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+#login .err { color:var(--bad); font-size:13px; min-height:18px; margin-top:10px; }
 .hidden { display:none !important; }
 </style>
 </head>
@@ -97,13 +105,16 @@ tr.sel td { background:var(--panel2); }
   <h1>EduSense Records</h1>
   <span class="chip" id="health">connecting...</span>
   <span class="spacer"></span>
-  <button class="btn" id="keybtn" type="button">API key</button>
+  <span class="chip" id="who"></span>
+  <button class="btn hidden" id="pwbtn" type="button">Change password</button>
+  <button class="btn" id="logoutbtn" type="button">Log out</button>
 </header>
 <nav role="tablist" id="tabs">
   <button role="tab" data-tab="students" aria-selected="true">Students</button>
   <button role="tab" data-tab="marks" aria-selected="false">Subjects &amp; marks</button>
   <button role="tab" data-tab="sessions" aria-selected="false">Sessions</button>
   <button role="tab" data-tab="export" aria-selected="false">Export</button>
+  <button role="tab" data-tab="teachers" aria-selected="false" id="teachers-tab" class="hidden">Teachers</button>
 </nav>
 <main>
   <!-- STUDENTS -->
@@ -118,6 +129,44 @@ tr.sel td { background:var(--panel2); }
         <div id="students-list"></div>
       </div>
       <div id="detail-wrap"><div class="panel empty" id="detail">Select a student to see their record.</div></div>
+    </div>
+  </section>
+
+  <!-- TEACHERS (admin only) -->
+  <section id="tab-teachers" class="hidden">
+    <div class="panel">
+      <h2>Add a teacher</h2>
+      <form id="teacher-form" class="row" autocomplete="off">
+        <input name="username" class="grow" placeholder="Username (3-32: letters, digits . _ -)" autocapitalize="none" required>
+        <input name="password" type="text" class="grow" placeholder="Password (min 8 characters)" autocomplete="off" required>
+        <button class="btn primary" type="submit">Create teacher</button>
+      </form>
+      <p class="muted small">Give the teacher this username and password. They can change the password later; you can reset it here.</p>
+      <h2 style="margin-top:18px">Teachers</h2>
+      <div id="teachers-list"></div>
+    </div>
+    <div class="panel hidden" id="face-panel" style="margin-top:16px">
+      <h2>Train face: <span id="face-name"></span></h2>
+      <p class="muted small" style="margin-top:0">3-5 clear photos, one face each, good light, slightly different angles. Only used to log when the camera sees this teacher; it never changes attendance or marks.</p>
+      <video id="face-video" class="cam" muted playsinline></video>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="face-cam" type="button">Start camera</button>
+        <button class="btn" id="face-snap" type="button" disabled>Capture</button>
+        <label class="btn small">Add photos from files <input type="file" id="face-file" accept="image/*" multiple hidden></label>
+        <button class="btn primary" id="face-save" type="button" disabled>Save 0 photos</button>
+        <button class="btn" id="face-close" type="button">Close</button>
+      </div>
+      <div class="shots" id="face-shots" style="margin-top:10px"></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="row" style="margin-bottom:8px">
+        <h2 style="margin:0" class="grow">Teacher presence (admin only)</h2>
+        <button class="btn" id="presence-refresh" type="button">Refresh</button>
+      </div>
+      <p class="muted small" style="margin-top:0">How often the class camera saw each trained teacher. This is a private log: it does not change any attendance or marks. Several detections within a minute in one session count once.</p>
+      <div id="presence-summary"></div>
+      <h3>Recent detections <select id="presence-filter" aria-label="Filter by teacher"></select></h3>
+      <div id="presence-recent"></div>
     </div>
   </section>
 
@@ -164,16 +213,32 @@ tr.sel td { background:var(--panel2); }
 
   <!-- SESSIONS -->
   <section id="tab-sessions" class="hidden">
+    <div class="panel" id="live-panel" style="margin-bottom:16px">
+      <h2>Take attendance with the PC camera</h2>
+      <div class="row" id="live-setup">
+        <select id="live-subject" aria-label="Subject"></select>
+        <input id="live-title" class="grow" placeholder="Session title, e.g. Week 5">
+        <button class="btn primary" id="live-start" type="button">Start session</button>
+      </div>
+      <div id="live-body" class="hidden">
+        <p style="margin:0 0 8px">Session: <b id="live-name"></b> <button class="btn" id="live-end" type="button" style="margin-left:8px">Finish</button></p>
+        <video id="live-video" class="cam" muted playsinline></video>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="live-cam" type="button">Start camera</button>
+          <button class="btn primary" id="live-scan" type="button" disabled>Scan class</button>
+          <label class="small muted"><input type="checkbox" id="live-auto"> auto-scan every
+            <select id="live-every"><option value="10">10 s</option><option value="20" selected>20 s</option><option value="30">30 s</option><option value="60">60 s</option></select></label>
+          <label class="btn small">Upload a photo instead <input type="file" id="live-file" accept="image/*" hidden></label>
+        </div>
+        <p class="muted small">Seat everyone in view and face the camera: faces smaller than about 80 px are missed. Each scan only adds people; nobody is removed.</p>
+        <div id="live-result"></div>
+      </div>
+    </div>
     <div class="panel">
       <div class="row" style="margin-bottom:10px">
         <h2 style="margin:0" class="grow">Attendance sessions</h2>
         <select id="sess-filter" aria-label="Filter by subject"></select>
       </div>
-      <form id="session-form" class="row" style="margin:12px 0 16px">
-        <input name="title" class="grow" placeholder="Session title, e.g. Lecture 08" aria-label="New session title" required maxlength="120">
-        <select name="subject_id" id="new-session-subject" aria-label="Session subject" required></select>
-        <button class="btn primary" type="submit">+ New session</button>
-      </form>
       <div id="sessions-list"></div>
     </div>
   </section>
@@ -196,6 +261,27 @@ tr.sel td { background:var(--panel2); }
     </div>
   </section>
 </main>
+<div id="login" class="hidden">
+  <form class="panel" id="login-form" autocomplete="off">
+    <h2 style="font-size:20px">EduSense AI</h2>
+    <div class="modes">
+      <button type="button" class="btn" id="mode-teacher" aria-pressed="true">Teacher</button>
+      <button type="button" class="btn" id="mode-admin" aria-pressed="false">Admin</button>
+    </div>
+    <div id="teacher-fields">
+      <label for="lg-user">Username</label>
+      <input id="lg-user" autocomplete="username" autocapitalize="none" spellcheck="false">
+      <label for="lg-pass">Password</label>
+      <input id="lg-pass" type="password" autocomplete="current-password">
+    </div>
+    <div id="admin-fields" class="hidden">
+      <label for="lg-key">Admin key</label>
+      <input id="lg-key" type="password" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="err" id="lg-err" role="alert"></div>
+    <button class="btn primary" id="lg-go" type="submit" style="width:100%;margin-top:6px">Log in</button>
+  </form>
+</div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -205,12 +291,19 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&
 const fmt = n => (n === null || n === undefined) ? "-" : String(Math.round(n * 100) / 100);
 const KIND = { quiz:"Quiz", assignment:"Assignment", mid:"Mid-term", final:"Final" };
 
-let key = "";
-try { key = new URLSearchParams(location.search).get("key") || localStorage.getItem("edusense_key") || ""; } catch (e) {}
+let token = "", role = "", username = "";
+try { token = sessionStorage.getItem("edusense_token") || ""; role = sessionStorage.getItem("edusense_role") || ""; username = sessionStorage.getItem("edusense_user") || ""; } catch (e) {}
 const S = { students: [], subjects: [], minAtt: 75, subject: null, assessment: null, selected: null, sessOpen: null };
 
-function saveKey(k) { key = k; try { localStorage.setItem("edusense_key", k); } catch (e) {} }
-function dl(path) { return path + (key ? (path.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(key) : ""); }
+function saveSession(t, r, u) {
+  token = t; role = r; username = u;
+  try { sessionStorage.setItem("edusense_token", t); sessionStorage.setItem("edusense_role", r); sessionStorage.setItem("edusense_user", u); } catch (e) {}
+}
+function clearSession() {
+  token = role = username = "";
+  try { sessionStorage.removeItem("edusense_token"); sessionStorage.removeItem("edusense_role"); sessionStorage.removeItem("edusense_user"); } catch (e) {}
+}
+function dl(path) { return path + (token ? (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token) : ""); }
 
 let toastTimer;
 function toast(msg, isErr) {
@@ -218,18 +311,14 @@ function toast(msg, isErr) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "", isErr ? 4500 : 2200);
 }
 
-async function api(path, opts = {}, retried = false) {
-  const headers = { "X-API-Key": key };
+async function api(path, opts = {}) {
+  const headers = token ? { "Authorization": "Bearer " + token } : {};
   let body;
   if (opts.form) body = opts.form;                      // multipart (photo upload)
   else if (opts.body !== undefined) { headers["Content-Type"] = "application/json"; body = JSON.stringify(opts.body); }
   const res = await fetch(path, { method: opts.method || "GET", headers, body });
-  if (res.status === 401 && !retried) {
-    const k = prompt("This server needs its API key:");
-    if (k === null) throw new Error("API key required");
-    saveKey(k.trim()); return api(path, opts, true);
-  }
   let data = {}; try { data = await res.json(); } catch (e) {}
+  if (res.status === 401 && path !== "/api/login") { showLogin(); throw new Error(data.error || "Please log in"); }
   if (!res.ok) throw new Error(data.error || ("Server error " + res.status));
   return data;
 }
@@ -251,16 +340,240 @@ function attBar(p) {
 /* ---------- tabs ---------- */
 $("#tabs").addEventListener("click", e => {
   const b = e.target.closest("button[data-tab]"); if (!b) return;
+  stopCamera();
   for (const t of document.querySelectorAll("#tabs button")) t.setAttribute("aria-selected", t === b);
   for (const s of document.querySelectorAll("main > section")) s.classList.toggle("hidden", s.id !== "tab-" + b.dataset.tab);
-  ({ students: loadStudents, marks: loadMarksTab, sessions: loadSessions, export: setupExport })[b.dataset.tab]();
+  ({ students: loadStudents, marks: loadMarksTab, sessions: loadSessionsTab, export: setupExport, teachers: loadTeachersTab })[b.dataset.tab]();
 });
-$("#keybtn").onclick = () => { const k = prompt("API key (leave empty if the server has none):", key); if (k !== null) { saveKey(k.trim()); init(); } };
+
+/* ---------- login / logout ---------- */
+let adminMode = false;
+function setMode(admin) {
+  adminMode = admin;
+  $("#mode-admin").setAttribute("aria-pressed", admin); $("#mode-teacher").setAttribute("aria-pressed", !admin);
+  $("#admin-fields").classList.toggle("hidden", !admin); $("#teacher-fields").classList.toggle("hidden", admin);
+  $("#lg-err").textContent = "";
+}
+$("#mode-admin").onclick = () => setMode(true);
+$("#mode-teacher").onclick = () => setMode(false);
+function showLogin() {
+  clearSession();
+  $("#login").classList.remove("hidden");
+  for (const el of ["#lg-pass", "#lg-key"]) $(el).value = "";
+  $(adminMode ? "#lg-key" : "#lg-user").focus();
+}
+$("#login-form").onsubmit = async e => {
+  e.preventDefault();
+  const go = $("#lg-go"); go.disabled = true; $("#lg-err").textContent = "";
+  try {
+    const body = adminMode ? { username: $("#lg-key").value.trim() } : { username: $("#lg-user").value.trim(), password: $("#lg-pass").value };
+    const r = await api("/api/login", { method: "POST", body });
+    saveSession(r.token, r.role, r.username);
+    $("#login").classList.add("hidden"); $("#lg-pass").value = $("#lg-key").value = "";
+    init();
+  } catch (err) { $("#lg-err").textContent = err.message; }
+  finally { go.disabled = false; }
+};
+$("#logoutbtn").onclick = async () => { try { await api("/api/logout", { method: "POST" }); } catch (e) {} showLogin(); };
+$("#pwbtn").onclick = guard(async () => {
+  const oldp = prompt("Current password:"); if (oldp === null) return;
+  const newp = prompt("New password (min 8 characters):"); if (newp === null) return;
+  await api("/api/me/password", { method: "POST", body: { old_password: oldp, new_password: newp } });
+  toast("Password changed");
+});
+function applyRole() {
+  const admin = role === "admin";
+  $("#who").textContent = admin ? "Admin" : username;
+  $("#teachers-tab").classList.toggle("hidden", !admin);
+  $("#pwbtn").classList.toggle("hidden", admin);
+  document.body.classList.toggle("is-teacher", !admin);
+}
+
+/* ---------- teachers (admin) ---------- */
+const loadTeachers = guard(async () => {
+  const d = await api("/api/users");
+  $("#teachers-list").innerHTML = d.users.length ? `<table><thead><tr><th>Username</th><th>Face</th><th>Last login</th><th>Status</th><th></th></tr></thead><tbody>` +
+    d.users.map(u => `<tr><td>${esc(u.username)}</td>
+      <td>${u.face_samples ? `<span class="pill ok">${u.face_samples} photo${u.face_samples === 1 ? "" : "s"}</span>` : `<span class="pill">not trained</span>`}</td><td class="muted small">${esc(u.last_login || "never")}</td>
+      <td>${u.active ? "Active" : "<span class='muted'>Disabled</span>"}</td>
+      <td class="row"><button class="btn" data-act="face" data-id="${u.id}" data-name="${esc(u.username)}">Train face</button>
+      ${u.face_samples ? `<button class="btn" data-act="noface" data-id="${u.id}">Clear face</button>` : ""}
+      <button class="btn" data-act="pw" data-id="${u.id}">Reset password</button>
+      <button class="btn" data-act="toggle" data-id="${u.id}" data-active="${u.active}">${u.active ? "Disable" : "Enable"}</button>
+      <button class="btn danger" data-act="del" data-id="${u.id}" data-name="${esc(u.username)}">Delete</button></td></tr>`).join("") + `</tbody></table>`
+    : `<div class="empty">No teachers yet. Add one above.</div>`;
+});
+$("#teacher-form").onsubmit = guard(async e => {
+  e.preventDefault();
+  const f = e.target;
+  await api("/api/users", { method: "POST", body: { username: f.username.value.trim(), password: f.password.value } });
+  toast("Teacher " + f.username.value.trim() + " created"); f.reset(); loadTeachers();
+});
+$("#teachers-list").addEventListener("click", guard(async e => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const id = b.dataset.id;
+  if (b.dataset.act === "face") { openFacePanel(+id, b.dataset.name); return; }
+  if (b.dataset.act === "noface") {
+    if (!confirm("Remove this teacher's trained face?")) return;
+    await api("/api/users/" + id + "/face", { method: "DELETE" }); toast("Face removed"); loadTeachers(); loadPresence(); return;
+  }
+  if (b.dataset.act === "pw") {
+    const p = prompt("New password for this teacher (min 8 characters):"); if (p === null) return;
+    await api("/api/users/" + id, { method: "PUT", body: { password: p } }); toast("Password reset");
+  } else if (b.dataset.act === "toggle") {
+    await api("/api/users/" + id, { method: "PUT", body: { active: b.dataset.active !== "true" } });
+  } else if (confirm("Delete teacher " + b.dataset.name + "?")) {
+    await api("/api/users/" + id, { method: "DELETE" });
+  }
+  loadTeachers();
+}));
+
+/* ---------- PC camera ---------- */
+const Cam = {
+  stream: null,
+  async start(video) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+      throw new Error("The camera needs https:// or http://localhost. Open the dashboard from the https link, or from localhost on the server PC.");
+    this.stop();
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    } catch (e) {
+      throw new Error(e.name === "NotAllowedError" ? "Camera blocked: allow it in the browser's address bar" : "No camera available (" + e.name + ")");
+    }
+    video.srcObject = this.stream; await video.play();
+  },
+  stop() { if (this.stream) this.stream.getTracks().forEach(t => t.stop()); this.stream = null; for (const v of document.querySelectorAll("video.cam")) v.srcObject = null; },
+  snap(video) {
+    return new Promise((resolve, reject) => {
+      if (!video.videoWidth) return reject(new Error("Camera is not ready yet"));
+      const c = document.createElement("canvas"); c.width = video.videoWidth; c.height = video.videoHeight;
+      c.getContext("2d").drawImage(video, 0, 0);
+      c.toBlob(b => b ? resolve(b) : reject(new Error("Could not capture the picture")), "image/jpeg", 0.92);
+    });
+  },
+};
+function stopCamera() {
+  Cam.stop(); clearInterval(liveTimer); liveTimer = null;
+  for (const id of ["#live-cam", "#face-cam"]) { const b = $(id); if (b) b.textContent = "Start camera"; }
+  for (const id of ["#live-scan", "#face-snap"]) { const b = $(id); if (b) b.disabled = true; }
+  const auto = $("#live-auto"); if (auto) auto.checked = false;
+}
+function thumbs(box, blobs, onRemove) {
+  box.innerHTML = "";
+  blobs.forEach((b, i) => {
+    const im = document.createElement("img"); im.src = URL.createObjectURL(b); im.title = "Click to remove"; im.alt = "photo " + (i + 1);
+    im.onclick = () => onRemove(i); box.appendChild(im);
+  });
+}
+
+/* ---- train a teacher's face (admin) ---- */
+let faceUser = null, faceShots = [];
+function renderFaceShots() {
+  thumbs($("#face-shots"), faceShots, i => { faceShots.splice(i, 1); renderFaceShots(); });
+  $("#face-save").textContent = `Save ${faceShots.length} photo${faceShots.length === 1 ? "" : "s"}`; $("#face-save").disabled = !faceShots.length;
+}
+function openFacePanel(id, name) {
+  stopCamera(); faceUser = id; faceShots = []; $("#face-name").textContent = name; $("#face-panel").classList.remove("hidden"); renderFaceShots();
+  $("#face-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("#face-cam").onclick = guard(async () => {
+  if (Cam.stream) { stopCamera(); return; }
+  await Cam.start($("#face-video")); $("#face-cam").textContent = "Stop camera"; $("#face-snap").disabled = false;
+});
+$("#face-snap").onclick = guard(async () => { faceShots.push(await Cam.snap($("#face-video"))); renderFaceShots(); });
+$("#face-file").onchange = e => { faceShots.push(...e.target.files); e.target.value = ""; renderFaceShots(); };
+$("#face-close").onclick = () => { stopCamera(); faceUser = null; $("#face-panel").classList.add("hidden"); };
+$("#face-save").onclick = guard(async () => {
+  const btn = $("#face-save"); btn.disabled = true; btn.textContent = "Checking faces...";
+  try {
+    const fd = new FormData(); faceShots.forEach((b, i) => fd.append("image", b, `teacher_${i}.jpg`));
+    const r = await api(`/api/users/${faceUser}/face`, { method: "POST", form: fd });
+    toast(`Saved. This teacher now has ${r.face_samples} trained photo${r.face_samples === 1 ? "" : "s"}`);
+    faceShots = []; renderFaceShots(); loadTeachers(); loadPresence();
+  } catch (e) { renderFaceShots(); throw e; }
+});
+
+/* ---- presence log (admin) ---- */
+const loadPresence = guard(async () => {
+  if (role !== "admin") return;
+  const f = $("#presence-filter").value;
+  const d = await api("/api/teacher-presence" + (f ? "?user_id=" + f : ""));
+  $("#presence-summary").innerHTML = d.teachers.length ? `<table><thead><tr><th>Teacher</th><th>Face</th><th class="num">Detections</th><th class="num">Sessions seen</th><th>Last seen</th></tr></thead><tbody>` +
+    d.teachers.map(t => `<tr><td>${esc(t.username)}</td><td>${t.face_samples ? '<span class="pill ok">trained</span>' : '<span class="pill">not trained</span>'}</td>
+      <td class="num">${t.detections}</td><td class="num">${t.sessions_seen}</td><td class="muted small">${esc((t.last_seen || "never").replace("T", " "))}</td></tr>`).join("") + `</tbody></table>`
+    : `<div class="empty">No teachers yet.</div>`;
+  const sel = $("#presence-filter");
+  if (sel.options.length !== d.teachers.length + 1) {
+    sel.innerHTML = `<option value="">All teachers</option>` + d.teachers.map(t => `<option value="${t.id}">${esc(t.username)}</option>`).join(""); sel.value = f;
+  }
+  $("#presence-recent").innerHTML = d.recent.length ? `<table><thead><tr><th>When</th><th>Teacher</th><th>Session</th></tr></thead><tbody>` +
+    d.recent.map(r => `<tr><td class="muted small">${esc(r.seen_at.replace("T", " "))}</td><td>${esc(r.username)}</td><td>${esc(r.subject_code)} - ${esc(r.session_title)}</td></tr>`).join("") + `</tbody></table>`
+    : `<div class="empty">Nothing detected yet. Train a teacher's face, then scan a class.</div>`;
+});
+$("#presence-refresh").onclick = loadPresence;
+$("#presence-filter").onchange = loadPresence;
+
+/* ---- take attendance with the PC camera ---- */
+let liveSession = null, liveBusy = false, liveTimer = null;
+async function fillLiveSubjects() {
+  if (!S.subjects.length) await refreshSubjects();
+  const sel = $("#live-subject"), keep = sel.value;
+  sel.innerHTML = S.subjects.map(s => `<option value="${s.id}">${esc(s.code)} - ${esc(s.name)}</option>`).join(""); if (keep) sel.value = keep;
+}
+$("#live-start").onclick = guard(async () => {
+  const title = $("#live-title").value.trim(); if (!title) throw new Error("Type a session title first");
+  const sub = $("#live-subject").value; if (!sub) throw new Error("Add a subject first (Subjects & marks tab)");
+  const r = await api("/api/sessions", { method: "POST", body: { title, subject_id: +sub } });
+  liveSession = r.id; $("#live-name").textContent = `${$("#live-subject").selectedOptions[0].textContent} / ${r.title}`;
+  $("#live-setup").classList.add("hidden"); $("#live-body").classList.remove("hidden"); $("#live-result").innerHTML = ""; $("#live-title").value = "";
+  await liveRefresh();
+});
+$("#live-end").onclick = () => { stopCamera(); liveSession = null; $("#live-body").classList.add("hidden"); $("#live-setup").classList.remove("hidden"); loadSessions(); };
+$("#live-cam").onclick = guard(async () => {
+  if (Cam.stream) { stopCamera(); return; }
+  await Cam.start($("#live-video")); $("#live-cam").textContent = "Stop camera"; $("#live-scan").disabled = false;
+});
+async function liveSend(blob) {
+  if (liveBusy || !liveSession) return; liveBusy = true;
+  const scan = $("#live-scan"); scan.disabled = true; const label = scan.textContent; scan.textContent = "Scanning...";
+  try {
+    const fd = new FormData(); fd.append("image", blob, "class.jpg");
+    const r = await api(`/api/sessions/${liveSession}/recognize`, { method: "POST", form: fd });
+    const bits = [`${r.faces_detected} face${r.faces_detected === 1 ? "" : "s"} found`];
+    if (r.recognized.length) bits.push(r.recognized.map(x => esc(x.name) + (x.new ? " <span class='pill ok'>new</span>" : "")).join(", "));
+    if (r.unknown) bits.push(`<span class="pill warn">${r.unknown} not recognised</span>`);
+    if (r.teachers_seen) bits.push(`<span class="pill">teacher seen: ${r.teachers_seen.map(esc).join(", ")}</span>`);
+    else if (r.staff) bits.push(`<span class="muted">${r.staff} staff face${r.staff === 1 ? "" : "s"} skipped</span>`);
+    const line = document.createElement("div"); line.className = "small"; line.style.margin = "4px 0";
+    line.innerHTML = `<span class="muted">${new Date().toLocaleTimeString()}</span> - ` + bits.join(" - ");
+    $("#live-result").prepend(line); await liveRefresh();
+  } finally { liveBusy = false; scan.textContent = label; scan.disabled = !Cam.stream; }
+}
+async function liveRefresh() {
+  const d = await api(`/api/sessions/${liveSession}/attendance`);
+  let box = $("#live-summary"); if (!box) { box = document.createElement("div"); box.id = "live-summary"; box.style.margin = "10px 0"; $("#live-result").before(box); }
+  box.innerHTML = `<b>Present ${d.present.length} / ${d.present.length + d.absent.length}</b>: <span class="muted">${d.present.map(p => esc(p.name)).join(", ") || "nobody yet"}</span>`;
+}
+$("#live-scan").onclick = guard(async () => { await liveSend(await Cam.snap($("#live-video"))); });
+$("#live-file").onchange = guard(async e => { const f = e.target.files[0]; e.target.value = ""; if (f) await liveSend(f); });
+$("#live-auto").onchange = e => {
+  clearInterval(liveTimer); liveTimer = null;
+  if (e.target.checked) {
+    if (!Cam.stream) { e.target.checked = false; toast("Start the camera first", true); return; }
+    liveTimer = setInterval(guard(async () => { if (Cam.stream) await liveSend(await Cam.snap($("#live-video"))); }), (+$("#live-every").value) * 1000);
+  }
+};
+$("#live-every").onchange = () => { if ($("#live-auto").checked) $("#live-auto").onchange({ target: $("#live-auto") }); };
+window.addEventListener("pagehide", stopCamera);
+
+
+const loadTeachersTab = async () => { await loadTeachers(); loadPresence(); };
+const loadSessionsTab = async () => { await loadSessions(); fillLiveSubjects(); };
 
 /* ---------- students ---------- */
 const loadStudents = guard(async () => {
   const d = await api("/api/students");
-  S.students = d.students; renderStudents();
+  S.students = d.students; renderStudents(); updateChip();
   if (S.selected && S.students.some(s => s.id === S.selected)) openStudent(S.selected, false);
 });
 function renderStudents() {
@@ -287,26 +600,46 @@ function showEnroll() {
       <div class="field"><label>Email</label><input name="email" type="email"></div>
       <div class="field"><label>Phone</label><input name="phone"></div>
       <div class="field" style="flex-basis:100%"><label>Face photos *</label>
-        <input name="image" type="file" accept="image/*" multiple required></div>
-      <div id="enroll-preview" class="chips" style="flex-basis:100%"></div>
+        <input name="image" type="file" accept="image/*" multiple></div>
+      <div class="field" style="flex-basis:100%"><label>...or use the PC webcam (needs https:// or localhost)</label>
+        <video id="enroll-video" class="cam" muted playsinline></video>
+        <div class="row" style="margin-top:6px"><button type="button" class="btn" id="enroll-cam">Start camera</button>
+          <button type="button" class="btn" id="enroll-snap" disabled>Capture photo</button></div></div>
+      <div id="enroll-preview" class="shots" style="flex-basis:100%"></div>
       <button class="btn primary" type="submit" id="enroll-go">Add student</button>
     </form>`;
-  $("#enroll-form [name=image]").onchange = e => {
+  stopCamera();
+  let shots = [];
+  const preview = () => {
     const box = $("#enroll-preview"); box.innerHTML = "";
-    for (const f of e.target.files) {
-      const im = document.createElement("img"); im.src = URL.createObjectURL(f); im.alt = f.name; im.title = f.name;
-      im.style.cssText = "width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)";
-      box.appendChild(im);
+    for (const f of $("#enroll-form [name=image]").files) {
+      const im = document.createElement("img"); im.src = URL.createObjectURL(f); im.alt = f.name; im.title = f.name; box.appendChild(im);
     }
+    shots.forEach((b, i) => {
+      const im = document.createElement("img"); im.src = URL.createObjectURL(b); im.title = "Webcam photo - click to remove"; im.alt = "webcam photo " + (i + 1);
+      im.onclick = () => { shots.splice(i, 1); preview(); }; box.appendChild(im);
+    });
   };
+  $("#enroll-form [name=image]").onchange = preview;
+  $("#enroll-cam").onclick = guard(async () => {
+    if (Cam.stream) { stopCamera(); return; }
+    await Cam.start($("#enroll-video")); $("#enroll-cam").textContent = "Stop camera"; $("#enroll-snap").disabled = false;
+  });
+  $("#enroll-snap").onclick = guard(async () => { shots.push(await Cam.snap($("#enroll-video"))); preview(); });
   $("#enroll-form").onsubmit = guard(async e => {
     e.preventDefault();
     const go = $("#enroll-go"); go.disabled = true; go.textContent = "Checking faces... (a few seconds per photo)";
     try {
-      const r = await api("/api/students", { method: "POST", form: new FormData(e.target) });
+      const fd = new FormData(e.target);
+      const picked = fd.getAll("image").filter(f => f.size);   // an empty file input still sends a blank part
+      fd.delete("image");
+      picked.forEach(f => fd.append("image", f)); shots.forEach((b, i) => fd.append("image", b, `webcam_${i}.jpg`));
+      if (!fd.getAll("image").length) throw new Error("Add at least one photo (file or webcam)");
+      const r = await api("/api/students", { method: "POST", form: fd });
+      stopCamera();
       toast(`${r.name} added with ${r.added_samples} photo${r.added_samples === 1 ? "" : "s"}`);
       S.selected = r.id; await loadStudents();
-      const h = await api("/api/health"); $("#health").textContent = `${h.students} students enrolled - minimum attendance ${S.minAtt}%`;
+      updateChip();
     } finally { go.disabled = false; go.textContent = "Add student"; }
   });
   if (matchMedia("(max-width: 860px)").matches) d.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -417,57 +750,33 @@ const loadSessions = guard(async () => {
   if (!S.subjects.length) await refreshSubjects();
   const f = $("#sess-filter").value;
   const d = await api("/api/sessions?limit=200" + (f ? "&subject_id=" + f : ""));
-  const list = $("#sessions-list");
-  list.className = "session-cards";
-  list.innerHTML = d.sessions.length ? d.sessions.map(s => `
-    <article class="session-card${s.id === S.sessOpen ? " sel" : ""}" data-id="${s.id}" tabindex="0" role="button" aria-expanded="${s.id === S.sessOpen}">
-      <h3>${esc(s.title)}</h3>
-      <div class="session-meta"><span class="tag">${esc(s.subject_code)}</span><span class="muted small">${esc(s.created_at.replace("T", " ").slice(0, 16))}</span></div>
-      <p class="muted small" style="margin:10px 0 0">${s.present} present · Select to view or edit attendance</p>
-      ${s.id === S.sessOpen ? `<div id="sess-detail" class="session-detail" style="margin-top:12px">Loading attendance...</div>` : ""}
-    </article>`).join("") : `<div class="empty">No sessions yet. Create one above to start taking attendance.</div>`;
-  const subjectSelect = $("#new-session-subject");
-  if (subjectSelect && S.subjects.length) {
-    const previous = subjectSelect.value;
-    subjectSelect.innerHTML = S.subjects.map(s => `<option value="${s.id}">${esc(s.code)} - ${esc(s.name)}</option>`).join("");
-    subjectSelect.value = S.subjects.some(s => String(s.id) === previous) ? previous : String(S.subject ?? S.subjects[0].id);
-  }
+  $("#sessions-list").innerHTML = d.sessions.length ? `<table><thead><tr><th>Session</th><th>Subject</th><th>When</th><th class="num">Present</th></tr></thead><tbody>` +
+    d.sessions.map(s => `<tr class="click${s.id === S.sessOpen ? " sel" : ""}" data-id="${s.id}"><td>${esc(s.title)}</td><td><span class="tag">${esc(s.subject_code)}</span></td>
+      <td class="muted small">${esc(s.created_at.replace("T", " ").slice(0, 16))}</td><td class="num">${s.present}</td></tr>` +
+      (s.id === S.sessOpen ? `<tr><td colspan="4" id="sess-detail" class="muted">Loading...</td></tr>` : "")).join("") + `</tbody></table>`
+    : `<div class="empty">No sessions yet. Start one in the phone app.</div>`;
   if (S.sessOpen) renderSessionDetail();
 });
 $("#sess-filter").onchange = loadSessions;
-$("#session-form").onsubmit = guard(async e => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  const title = form.elements.title.value.trim();
-  const subject_id = Number(form.elements.subject_id.value);
-  if (!title || !subject_id) { toast("Enter a title and choose a subject", true); return; }
-  const created = await api("/api/sessions", { method: "POST", body: { title, subject_id } });
-  S.sessOpen = created.id;
-  form.elements.title.value = "";
-  toast("Session created");
-  await loadSessions();
-});
 $("#sessions-list").addEventListener("click", e => {
-  const card = e.target.closest(".session-card"); if (!card) return;
-  if (e.target.closest("button[data-sid]")) return;
-  S.sessOpen = S.sessOpen === +card.dataset.id ? null : +card.dataset.id; loadSessions();
-});
-$("#sessions-list").addEventListener("keydown", e => {
-  if ((e.key === "Enter" || e.key === " ") && e.target.matches(".session-card")) { e.preventDefault(); S.sessOpen = S.sessOpen === +e.target.dataset.id ? null : +e.target.dataset.id; loadSessions(); }
+  const tr = e.target.closest("tr.click"); if (!tr) return;
+  S.sessOpen = S.sessOpen === +tr.dataset.id ? null : +tr.dataset.id; loadSessions();
 });
 const renderSessionDetail = guard(async () => {
   const el = $("#sess-detail"); if (!el) return;
   const d = await api(`/api/sessions/${S.sessOpen}/attendance`);
-  const chip = (p, present) => `<button type="button" class="chip-btn" data-sid="${p.student_id}" data-present="${present}" title="${present ? "Click to mark absent" : "Click to mark present"}">${esc(p.roll_no)} ${esc(p.name)} · ${present ? "Present" : "Absent"}</button>`;
-  el.className = "session-detail"; el.innerHTML = `<div class="small muted" style="margin:4px 0">Present (${d.present.length}) — tap a student to mark absent</div>
-    <div class="chips">${d.present.map(p => chip(p, true)).join("") || '<span class="muted">Nobody yet</span>'}</div>
-    <div class="small muted" style="margin:12px 0 4px">Absent (${d.absent.length}) — tap a student to mark present</div>
-    <div class="chips">${d.absent.map(p => chip(p, false)).join("") || '<span class="muted">Nobody</span>'}</div>
+  const chip = (p, present) => `<button class="chip-btn" data-sid="${p.student_id}" data-present="${present}" title="${present ? "Click to mark absent" : "Click to mark present"}">${esc(p.roll_no)} ${esc(p.name)}</button>`;
+  el.className = ""; el.innerHTML = `<div class="small muted" style="margin:4px 0">Present (${d.present.length}) - click a name to mark absent</div>
+    <div class="chips">${d.present.map(p => chip(p, true)).join("") || '<span class="muted">nobody</span>'}</div>
+    <div class="small muted" style="margin:12px 0 4px">Absent (${d.absent.length}) - click a name to mark present</div>
+    <div class="chips">${d.absent.map(p => chip(p, false)).join("") || '<span class="muted">nobody</span>'}</div>
+    ${d.staff && d.staff.length ? `<div class="small muted" style="margin:12px 0 4px">Teachers detected by the camera (not counted in attendance)</div>
+      <div class="chips">${d.staff.map(t => `<span class="pill">${esc(t.username)} - ${t.detections}x, ${esc(t.first_seen.slice(11, 16))}-${esc(t.last_seen.slice(11, 16))}</span>`).join("")}</div>` : ""}
     <p style="margin:12px 0 4px"><a href="${dl(`/api/sessions/${S.sessOpen}/export.csv`)}">Download this session as CSV</a></p>`;
   el.onclick = guard(async e => {
     const b = e.target.closest("button[data-sid]"); if (!b) return;
     await api(`/api/sessions/${S.sessOpen}/mark`, { method: "POST", body: { student_id: +b.dataset.sid, present: b.dataset.present !== "true" } });
-    await loadSessions();
+    loadSessions();
   });
 });
 
@@ -475,11 +784,14 @@ const renderSessionDetail = guard(async () => {
 function setupExport() { $("#dl-xlsx").href = dl("/api/export/all.xlsx"); $("#dl-zip").href = dl("/api/export/reports.zip"); }
 
 /* ---------- start ---------- */
+function updateChip() { $("#health").textContent = `${S.students.length} students enrolled - minimum attendance ${S.minAtt}%`; }
 const init = guard(async () => {
-  const h = await api("/api/health");
-  S.minAtt = h.min_attendance || S.minAtt;
-  $("#health").textContent = `${h.students} students enrolled - minimum attendance ${S.minAtt}%`;
-  await loadStudents();
+  if (!token) { showLogin(); return; }
+  const me = await api("/api/me");
+  role = me.role; username = me.username; S.minAtt = me.min_attendance || S.minAtt;
+  applyRole();
+  $('#tabs button[data-tab="students"]').click();   // always land on Students after (re)login
+  updateChip();
 });
 init();
 </script>

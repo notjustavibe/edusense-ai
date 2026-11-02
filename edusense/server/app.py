@@ -1,16 +1,21 @@
 """EduSense AI - face recognition attendance server.
 
 Run:  python app.py            (listens on 0.0.0.0:5000)
-Env:  EDUSENSE_KEY        optional API key (clients send X-API-Key header)
+Env:  EDUSENSE_ADMIN_KEY  secret admin key (32+ chars). Logging in with it, no password, gives admin
+                          rights. Teachers log in with their own username + password.
       EDUSENSE_TOLERANCE  match threshold, lower = stricter (default 0.5)
       EDUSENSE_DB         path to the SQLite file (default: ./edusense.db)
 """
 import csv
+import hashlib
+import hmac
 import io
 import json
 import os
 import re
+import secrets
 import sqlite3
+import time
 import zipfile
 from datetime import datetime
 
@@ -18,11 +23,14 @@ import face_recognition
 import numpy as np
 from flask import Flask, Response, g, jsonify, request, send_from_directory
 from PIL import Image, ImageOps
+from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.environ.get("EDUSENSE_DB", os.path.join(BASE, "edusense.db"))
 TOLERANCE = float(os.environ.get("EDUSENSE_TOLERANCE", "0.5"))
-API_KEY = os.environ.get("EDUSENSE_KEY", "")
+ADMIN_KEY = os.environ.get("EDUSENSE_ADMIN_KEY", "").strip()
+TOKEN_HOURS = float(os.environ.get("EDUSENSE_TOKEN_HOURS", "12"))
+SIGHTING_GAP = float(os.environ.get("EDUSENSE_SIGHTING_GAP", "60"))  # seconds: repeat detections of one teacher in one session closer than this count once
 MAX_SIDE = 1600  # phone photos are downscaled to this before detection
 
 SCHEMA = """
@@ -70,6 +78,38 @@ CREATE TABLE IF NOT EXISTS marks (
 );
 """
 
+AUTH_SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    pw_hash TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    created TEXT NOT NULL,
+    last_login TEXT
+);
+CREATE TABLE IF NOT EXISTS teacher_encodings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    vector TEXT NOT NULL
+);
+-- teacher sightings are a private log for the admin; they never touch attendance or marks
+CREATE TABLE IF NOT EXISTS teacher_sightings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    seen_at TEXT NOT NULL,
+    seen_ts REAL NOT NULL,
+    distance REAL
+);
+CREATE TABLE IF NOT EXISTS tokens (
+    token_hash TEXT PRIMARY KEY,
+    role TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    username TEXT NOT NULL,
+    expires REAL NOT NULL
+);
+"""
+
 KIND_ORDER = {"quiz": 0, "assignment": 1, "mid": 2, "final": 3}
 KIND_LABEL = {"quiz": "Quiz", "assignment": "Assignment", "mid": "Mid-term", "final": "Final"}
 
@@ -96,6 +136,7 @@ def init_db():
     """Create tables and upgrade an older database in place (no data is lost)."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.executescript(SCHEMA)
+        conn.executescript(AUTH_SCHEMA)
         cols = {r[1] for r in conn.execute("PRAGMA table_info(students)")}
         for col, ddl in (
             ("email", "TEXT NOT NULL DEFAULT ''"),
@@ -119,18 +160,282 @@ def now():
 
 
 # --------------------------------------------------------------------- auth
+USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{3,32}$")
+MIN_PASSWORD = 8
+FAIL_WINDOW = 600  # seconds
+MAX_FAILS_USER, MAX_FAILS_IP = 5, 40  # per username / per IP (IP limit is loose: proxies share one IP)
+_fails = {}  # throttle key -> [timestamps]
+_DUMMY_HASH = generate_password_hash("not-a-real-password")
+
+
+def _hash_token(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _throttle_keys(username):
+    return ("ip:" + (request.remote_addr or "?"), "user:" + username.lower())
+
+
+def _locked(keys):
+    cutoff = time.time() - FAIL_WINDOW
+    for k in keys:
+        _fails[k] = [t for t in _fails.get(k, []) if t > cutoff]
+        if len(_fails[k]) >= (MAX_FAILS_IP if k.startswith("ip:") else MAX_FAILS_USER):
+            return True
+    return False
+
+
+def _record_fail(keys):
+    for k in keys:
+        _fails.setdefault(k, []).append(time.time())
+
+
+def issue_token(role, username, user_id=None):
+    conn = db()
+    conn.execute("DELETE FROM tokens WHERE expires < ?", (time.time(),))
+    token = secrets.token_urlsafe(32)
+    conn.execute(
+        "INSERT INTO tokens (token_hash, role, user_id, username, expires) VALUES (?, ?, ?, ?, ?)",
+        (_hash_token(token), role, user_id, username, time.time() + TOKEN_HOURS * 3600),
+    )
+    conn.commit()
+    return token
+
+
+def request_token():
+    header = request.headers.get("Authorization", "")
+    if header.lower().startswith("bearer "):
+        return header[7:].strip()
+    return request.headers.get("X-Auth-Token") or request.args.get("token") or ""
+
+
+PUBLIC_API = {"/api/health", "/api/login"}
+
+
 @app.before_request
-def check_key():
-    if not API_KEY or not request.path.startswith("/api/") or request.path == "/api/health":
+def require_login():
+    """Every /api/ call needs a valid token, except health and login."""
+    if not request.path.startswith("/api/") or request.path in PUBLIC_API or request.method == "OPTIONS":
         return None
-    supplied = request.headers.get("X-API-Key") or request.args.get("key")
-    if supplied != API_KEY:
-        return jsonify(error="Invalid or missing API key"), 401
+    token = request_token()
+    row = None
+    if token:
+        row = db().execute(
+            """SELECT t.role, t.username, t.user_id, t.expires, u.active
+               FROM tokens t LEFT JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?""",
+            (_hash_token(token),),
+        ).fetchone()
+    if not row or row["expires"] < time.time() or (row["role"] == "teacher" and not row["active"]):
+        return jsonify(error="Please log in again", login_required=True), 401
+    g.role, g.username, g.user_id = row["role"], row["username"], row["user_id"]
+    admin_only = request.path.startswith(("/api/users", "/api/teacher-presence")) or (
+        request.method == "DELETE"
+        and re.match(r"^/api/(students|subjects|assessments)/\d+$", request.path)
+    )
+    if admin_only and g.role != "admin":
+        return jsonify(error="Admin only"), 403
     return None
 
 
 def fail(message, code=400):
     return jsonify(error=message), code
+
+
+@app.post("/api/login")
+def login():
+    """Admin: username = the admin key, password empty.  Teacher: username + password."""
+    body = request.get_json(silent=True) or {}
+    username = str(body.get("username") or "").strip()
+    password = str(body.get("password") or "")
+    if not username:
+        return fail("Enter your username")
+    keys = _throttle_keys(username[:40])
+    if _locked(keys):
+        return fail("Too many wrong attempts. Wait 10 minutes and try again.", 429)
+    if not password:  # admin key path
+        if ADMIN_KEY and len(ADMIN_KEY) >= 32 and hmac.compare_digest(username.encode(), ADMIN_KEY.encode()):
+            return jsonify(token=issue_token("admin", "admin"), role="admin", username="admin")
+        check_password_hash(_DUMMY_HASH, "x")  # keep timing similar
+        _record_fail(keys)
+        return fail("Wrong username or password", 401)
+    user = db().execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    ok = check_password_hash(user["pw_hash"] if user else _DUMMY_HASH, password)
+    if not (user and ok and user["active"]):
+        _record_fail(keys)
+        return fail("Wrong username or password", 401)
+    db().execute("UPDATE users SET last_login = ? WHERE id = ?", (now(), user["id"]))
+    db().commit()
+    return jsonify(token=issue_token("teacher", user["username"], user["id"]), role="teacher",
+                   username=user["username"])
+
+
+@app.post("/api/logout")
+def logout():
+    db().execute("DELETE FROM tokens WHERE token_hash = ?", (_hash_token(request_token()),))
+    db().commit()
+    return jsonify(ok=True)
+
+
+@app.get("/api/me")
+def me():
+    return jsonify(role=g.role, username=g.username, min_attendance=MIN_ATTENDANCE)
+
+
+def check_new_password(pw):
+    if len(pw or "") < MIN_PASSWORD:
+        return "Password must be at least %d characters" % MIN_PASSWORD
+    return None
+
+
+@app.post("/api/me/password")
+def change_own_password():
+    if g.role != "teacher":
+        return fail("The admin key cannot have a password", 400)
+    body = request.get_json(silent=True) or {}
+    user = db().execute("SELECT * FROM users WHERE id = ?", (g.user_id,)).fetchone()
+    if not user or not check_password_hash(user["pw_hash"], str(body.get("old_password") or "")):
+        return fail("Current password is wrong", 403)
+    problem = check_new_password(str(body.get("new_password") or ""))
+    if problem:
+        return fail(problem)
+    db().execute("UPDATE users SET pw_hash = ? WHERE id = ?",
+                 (generate_password_hash(body["new_password"]), user["id"]))
+    db().commit()
+    return jsonify(ok=True)
+
+
+# ------------------------------------------------- teacher accounts (admin only)
+@app.get("/api/users")
+def list_users():
+    rows = db().execute(
+        """SELECT u.id, u.username, u.active, u.created, u.last_login,
+                  (SELECT COUNT(*) FROM teacher_encodings e WHERE e.user_id = u.id) AS face_samples
+           FROM users u ORDER BY u.username"""
+    ).fetchall()
+    return jsonify(users=[dict(r, active=bool(r["active"])) for r in rows])
+
+
+@app.post("/api/users")
+def create_user():
+    body = request.get_json(silent=True) or {}
+    username = str(body.get("username") or "").strip()
+    password = str(body.get("password") or "")
+    if not USERNAME_RE.match(username):
+        return fail("Username: 3-32 letters, digits, . _ -")
+    problem = check_new_password(password)
+    if problem:
+        return fail(problem)
+    try:
+        cur = db().execute(
+            "INSERT INTO users (username, pw_hash, created) VALUES (?, ?, ?)",
+            (username, generate_password_hash(password), now()),
+        )
+        db().commit()
+    except sqlite3.IntegrityError:
+        return fail("That username is taken", 409)
+    return jsonify(id=cur.lastrowid, username=username), 201
+
+
+@app.put("/api/users/<int:uid>")
+def update_user(uid):
+    body = request.get_json(silent=True) or {}
+    if not db().execute("SELECT 1 FROM users WHERE id = ?", (uid,)).fetchone():
+        return fail("No such teacher", 404)
+    if "password" in body:
+        problem = check_new_password(str(body["password"] or ""))
+        if problem:
+            return fail(problem)
+        db().execute("UPDATE users SET pw_hash = ? WHERE id = ?", (generate_password_hash(body["password"]), uid))
+        db().execute("DELETE FROM tokens WHERE user_id = ?", (uid,))  # force re-login
+    if "active" in body:
+        db().execute("UPDATE users SET active = ? WHERE id = ?", (1 if body["active"] else 0, uid))
+        if not body["active"]:
+            db().execute("DELETE FROM tokens WHERE user_id = ?", (uid,))
+    db().commit()
+    return jsonify(ok=True)
+
+
+@app.delete("/api/users/<int:uid>")
+def delete_user(uid):
+    db().execute("DELETE FROM tokens WHERE user_id = ?", (uid,))
+    cur = db().execute("DELETE FROM users WHERE id = ?", (uid,))
+    db().commit()
+    if not cur.rowcount:
+        return fail("No such teacher", 404)
+    return jsonify(ok=True)
+
+
+@app.post("/api/users/<int:uid>/face")
+def enroll_teacher_face(uid):
+    """Admin trains a teacher's face (3-5 photos, one face each) so the camera can log when they are in class."""
+    user = db().execute("SELECT id, username FROM users WHERE id = ?", (uid,)).fetchone()
+    if not user:
+        return fail("No such teacher", 404)
+    files = request.files.getlist("image")
+    if not files:
+        return fail("Attach at least one photo (field name: image)")
+    vectors = []
+    for i, f in enumerate(files, start=1):
+        try:
+            arr = load_image(f)
+        except Exception:
+            return fail(f"Photo {i} is not a readable image")
+        _locs, encs = detect(arr)
+        if len(encs) != 1:
+            return fail(f"Photo {i} must contain exactly one face (found {len(encs)})")
+        vectors.append(encs[0])
+    ids, known = known_faces()
+    if len(ids):
+        for v in vectors:
+            if float(np.min(face_recognition.face_distance(known, v))) <= TOLERANCE:
+                return fail("That face already matches an enrolled student - use the teacher's own photo")
+    conn = db()
+    conn.executemany(
+        "INSERT INTO teacher_encodings (user_id, vector) VALUES (?, ?)",
+        [(uid, json.dumps(v.tolist())) for v in vectors],
+    )
+    conn.commit()
+    total = conn.execute("SELECT COUNT(*) FROM teacher_encodings WHERE user_id = ?", (uid,)).fetchone()[0]
+    return jsonify(ok=True, added_samples=len(vectors), face_samples=total), 201
+
+
+@app.delete("/api/users/<int:uid>/face")
+def clear_teacher_face(uid):
+    conn = db()
+    conn.execute("DELETE FROM teacher_encodings WHERE user_id = ?", (uid,))
+    conn.commit()
+    return jsonify(ok=True)
+
+
+@app.get("/api/teacher-presence")
+def teacher_presence():
+    """Admin only: how often the camera saw each teacher. Query: user_id (filter), limit."""
+    conn = db()
+    teachers = conn.execute(
+        """SELECT u.id, u.username, u.active,
+                  (SELECT COUNT(*) FROM teacher_encodings e WHERE e.user_id = u.id) AS face_samples,
+                  (SELECT COUNT(*) FROM teacher_sightings t WHERE t.user_id = u.id) AS detections,
+                  (SELECT COUNT(DISTINCT t.session_id) FROM teacher_sightings t WHERE t.user_id = u.id) AS sessions_seen,
+                  (SELECT MAX(t.seen_at) FROM teacher_sightings t WHERE t.user_id = u.id) AS last_seen
+           FROM users u ORDER BY u.username"""
+    ).fetchall()
+    uid = request.args.get("user_id", type=int)
+    limit = min(max(request.args.get("limit", 100, type=int), 1), 500)
+    rows = conn.execute(
+        """SELECT t.id, t.user_id, u.username, t.session_id, s.title AS session_title,
+                  sub.code AS subject_code, t.seen_at, t.distance
+           FROM teacher_sightings t
+           JOIN users u ON u.id = t.user_id
+           JOIN sessions s ON s.id = t.session_id
+           JOIN subjects sub ON sub.id = s.subject_id
+           WHERE (? IS NULL OR t.user_id = ?)
+           ORDER BY t.seen_ts DESC LIMIT ?""",
+        (uid, uid, limit),
+    ).fetchall()
+    return jsonify(
+        teachers=[dict(r, active=bool(r["active"])) for r in teachers],
+        recent=[dict(r) for r in rows],
+    )
 
 
 # ------------------------------------------------------------- face helpers
@@ -168,6 +473,16 @@ def known_faces():
     return ids, vectors
 
 
+def known_teacher_faces():
+    rows = db().execute(
+        """SELECT e.user_id, e.vector FROM teacher_encodings e
+           JOIN users u ON u.id = e.user_id WHERE u.active = 1"""
+    ).fetchall()
+    ids = [r["user_id"] for r in rows]
+    vectors = np.array([json.loads(r["vector"]) for r in rows]) if rows else np.empty((0, 128))
+    return ids, vectors
+
+
 def get_session(sid):
     return db().execute(
         """SELECT s.*, sub.code AS subject_code, sub.name AS subject_name
@@ -179,8 +494,7 @@ def get_session(sid):
 # -------------------------------------------------------------------- routes
 @app.get("/api/health")
 def health():
-    n = db().execute("SELECT COUNT(*) FROM students").fetchone()[0]
-    return jsonify(ok=True, students=n, tolerance=TOLERANCE, min_attendance=MIN_ATTENDANCE)
+    return jsonify(ok=True, login=True)
 
 
 def pct(part, whole):
@@ -331,7 +645,17 @@ def session_attendance(sid):
     if not session:
         return fail("No such session", 404)
     present, absent = attendance_payload(sid)
-    return jsonify(session=dict(session), present=present, absent=absent)
+    payload = dict(session=dict(session), present=present, absent=absent)
+    if g.role == "admin":
+        payload["staff"] = [
+            dict(r) for r in db().execute(
+                """SELECT u.username, COUNT(*) AS detections, MIN(t.seen_at) AS first_seen, MAX(t.seen_at) AS last_seen
+                   FROM teacher_sightings t JOIN users u ON u.id = t.user_id
+                   WHERE t.session_id = ? GROUP BY u.id ORDER BY u.username""",
+                (sid,),
+            )
+        ]
+    return jsonify(**payload)
 
 
 @app.post("/api/sessions/<int:sid>/recognize")
@@ -348,18 +672,28 @@ def recognize(sid):
 
     _locs, encs = detect(arr)
     ids, vectors = known_faces()
+    t_ids, t_vectors = known_teacher_faces()
 
     best = {}  # student_id -> smallest distance seen in this photo
+    teachers = {}  # user_id -> smallest distance (logged for the admin, never counted as attendance)
     unknown = 0
     for enc in encs:
-        if len(ids) == 0:
-            unknown += 1
-            continue
-        distances = face_recognition.face_distance(vectors, enc)
-        i = int(np.argmin(distances))
-        if distances[i] <= TOLERANCE:
-            student_id = ids[i]
-            best[student_id] = min(best.get(student_id, 9.0), float(distances[i]))
+        d_student, i_student = 9.0, -1
+        if len(ids):
+            distances = face_recognition.face_distance(vectors, enc)
+            i_student = int(np.argmin(distances))
+            d_student = float(distances[i_student])
+        d_teacher, i_teacher = 9.0, -1
+        if len(t_ids):
+            t_distances = face_recognition.face_distance(t_vectors, enc)
+            i_teacher = int(np.argmin(t_distances))
+            d_teacher = float(t_distances[i_teacher])
+        if d_teacher <= TOLERANCE and d_teacher < d_student:
+            uid = t_ids[i_teacher]
+            teachers[uid] = min(teachers.get(uid, 9.0), d_teacher)
+        elif d_student <= TOLERANCE:
+            sid_match = ids[i_student]
+            best[sid_match] = min(best.get(sid_match, 9.0), d_student)
         else:
             unknown += 1
 
@@ -384,8 +718,27 @@ def recognize(sid):
                 "new": cur.rowcount == 1,
             }
         )
+    staff_seen = []
+    ts = time.time()
+    for uid, dist in teachers.items():
+        recent = conn.execute(
+            "SELECT 1 FROM teacher_sightings WHERE user_id = ? AND session_id = ? AND seen_ts > ?",
+            (uid, sid, ts - SIGHTING_GAP),
+        ).fetchone()
+        if not recent:
+            conn.execute(
+                "INSERT INTO teacher_sightings (user_id, session_id, seen_at, seen_ts, distance) VALUES (?, ?, ?, ?, ?)",
+                (uid, sid, now(), ts, dist),
+            )
+        staff_seen.append(uid)
     conn.commit()
-    return jsonify(faces_detected=len(encs), recognized=recognized, unknown=unknown)
+    result = dict(faces_detected=len(encs), recognized=recognized, unknown=unknown, staff=len(staff_seen))
+    if g.role == "admin" and staff_seen:  # only the admin learns who the staff faces were
+        marks = ",".join("?" * len(staff_seen))
+        result["teachers_seen"] = [
+            r["username"] for r in conn.execute("SELECT username FROM users WHERE id IN (%s)" % marks, staff_seen)
+        ]
+    return jsonify(**result)
 
 
 @app.post("/api/sessions/<int:sid>/mark")
@@ -909,6 +1262,9 @@ def dashboard():
 
 
 init_db()
+
+if not (ADMIN_KEY and len(ADMIN_KEY) >= 32):
+    print("WARNING: EDUSENSE_ADMIN_KEY is not set (or shorter than 32 chars): admin login is disabled.")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=False)
